@@ -3,7 +3,7 @@ package query
 import "github.com/google/uuid"
 
 type GetPostQuery struct {
-	id uuid.UUID
+	id uuid.UUID `json:"id"`
 }
 
 func (q GetPostQuery) Id() uuid.UUID {

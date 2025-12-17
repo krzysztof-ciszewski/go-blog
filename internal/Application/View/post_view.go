@@ -8,30 +8,10 @@ import (
 
 type PostView struct {
 	entityView
-	slug    string
-	title   string
-	content string
-	author  string
-}
-
-func (p PostView) Id() uuid.UUID {
-	return p.id
-}
-
-func (p PostView) Slug() string {
-	return p.slug
-}
-
-func (p PostView) Title() string {
-	return p.title
-}
-
-func (p PostView) Content() string {
-	return p.content
-}
-
-func (p PostView) Author() string {
-	return p.author
+	Slug    string `json:"slug"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Author  string `json:"author"`
 }
 
 func NewPostView(
@@ -43,5 +23,5 @@ func NewPostView(
 	content string,
 	author string,
 ) PostView {
-	return PostView{entityView: NewEntityView(id, createdAt, updatedAt), slug: slug, title: title, content: content, author: author}
+	return PostView{entityView: NewEntityView(id, createdAt, updatedAt), Slug: slug, Title: title, Content: content, Author: author}
 }

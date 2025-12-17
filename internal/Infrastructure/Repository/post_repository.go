@@ -42,7 +42,7 @@ func (p postRepository) Save(post entity.Post) error {
 
 func (p postRepository) FindByID(id uuid.UUID) (entity.Post, error) {
 	row := p.db.QueryRow(`
-		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE id = ?
+		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE id = $1
 	`, id)
 
 	var postId uuid.UUID
@@ -64,7 +64,7 @@ func (p postRepository) FindByID(id uuid.UUID) (entity.Post, error) {
 
 func (p postRepository) FindBySlug(postSlug string) (entity.Post, error) {
 	row := p.db.QueryRow(`
-		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE slug = ?
+		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE slug = $1
 	`, postSlug)
 
 	var postId uuid.UUID
@@ -116,7 +116,7 @@ func (p postRepository) FindAll() ([]entity.Post, error) {
 
 func (p postRepository) FindAllByAuthor(author string) ([]entity.Post, error) {
 	rows, err := p.db.Query(`
-		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE author = ?
+		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE author = $1
 	`, author)
 
 	if err != nil {
@@ -146,7 +146,7 @@ func (p postRepository) FindAllByAuthor(author string) ([]entity.Post, error) {
 
 func (p postRepository) FindAllByText(text string) ([]entity.Post, error) {
 	rows, err := p.db.Query(`
-		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE title LIKE ? OR content LIKE ?
+		SELECT id, created_at, updated_at, slug, title, content, author FROM posts WHERE title LIKE $1 OR content LIKE $2
 	`, "%"+text+"%", "%"+text+"%")
 
 	if err != nil {
@@ -176,7 +176,7 @@ func (p postRepository) FindAllByText(text string) ([]entity.Post, error) {
 
 func (p postRepository) Delete(id uuid.UUID) error {
 	_, err := p.db.Exec(`
-		DELETE FROM posts WHERE id = ?
+		DELETE FROM posts WHERE id = $1
 	`, id)
 
 	return err

@@ -3,13 +3,20 @@ package query
 import (
 	"context"
 	view "main/internal/Application/View"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	repository "main/internal/Domain/Repository"
 )
 
-func GetPostQueryHandler(ctx context.Context, query *GetPostQuery) (view.PostView, error) {
-	container := dependency_injection.GetContainer()
+type GetPostQueryHandler struct {
+	PostRepository repository.PostRepository
+}
 
-	post, err := container.PostRepository.FindByID(query.Id())
+func (h GetPostQueryHandler) Handle(ctx context.Context, query any) (any, error) {
+	getPostQuery, ok := query.(GetPostQuery)
+	if !ok {
+		return view.PostView{}, nil
+	}
+
+	post, err := h.PostRepository.FindByID(getPostQuery.Id())
 
 	if err != nil {
 		return view.PostView{}, err
@@ -24,4 +31,9 @@ func GetPostQueryHandler(ctx context.Context, query *GetPostQuery) (view.PostVie
 		post.Content(),
 		post.Author(),
 	), nil
+}
+
+func (h GetPostQueryHandler) Supports(query any) bool {
+	_, ok := query.(GetPostQuery)
+	return ok
 }
