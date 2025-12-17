@@ -6,9 +6,20 @@ A microservices-based blog application built with Go, implementing CQRS (Command
 
 This project follows **Domain-Driven Design (DDD)** principles and implements the **CQRS pattern**:
 
-- **Commands**: Write operations that modify state (e.g., creating posts)
-- **Queries**: Read operations that retrieve data (e.g., fetching posts)
-- **Events**: Domain events published after state changes
+- **Commands**: Write operations that modify state (e.g., creating, deleting posts). Commands are sent asynchronously via Kafka.
+- **Queries**: Read operations that retrieve data (e.g., fetching posts, filtering by author/text). Queries are handled synchronously via a Query Bus.
+- **Events**: Domain events published after state changes for further processing (e.g., notifications, search indexing)
+
+### Query Bus
+
+The application implements a **Query Bus pattern** for handling read operations synchronously. Unlike commands which are processed asynchronously via Kafka, queries are executed directly through the Query Bus, providing immediate responses to API requests.
+
+The Query Bus supports:
+- **GetPostQuery**: Retrieve a single post by UUID
+- **FindBySlugQuery**: Retrieve a post by its unique slug
+- **FindAllQuery**: Retrieve all posts
+- **FindAllByTextQuery**: Search posts by content text
+- **FindAllByAuthorQuery**: Filter posts by author name
 
 ### Project Structure
 
@@ -20,14 +31,15 @@ blog/
 │   └── migrate.go                 # Database migration runner
 ├── internal/
 │   ├── Application/              # Application layer (CQRS)
-│   │   ├── Command/              # Command handlers
-│   │   ├── Query/                # Query handlers
+│   │   ├── Command/              # Command handlers (CreatePost, DeletePost)
+│   │   ├── Query/                # Query handlers (GetPost, FindAll, FindBySlug, etc.)
 │   │   └── View/                 # Read models
 │   ├── Domain/                   # Domain layer
 │   │   ├── Entity/              # Domain entities
 │   │   └── Repository/           # Repository interfaces
 │   ├── Infrastructure/           # Infrastructure layer
 │   │   ├── DependencyInjection/  # DI container
+│   │   ├── QueryBus/            # Query Bus implementation
 │   │   └── Repository/           # Repository implementations
 │   └── UserInterface/           # Presentation layer
 │       └── Api/                 # REST API handlers
@@ -39,10 +51,13 @@ blog/
 ## Features
 
 - **CQRS Pattern**: Separates read and write operations
+  - **Commands**: Asynchronous write operations via Kafka
+  - **Queries**: Synchronous read operations via Query Bus
+- **Query Bus**: Synchronous query handling for immediate API responses
 - **Event-Driven Architecture**: Uses Kafka for asynchronous message processing
 - **Domain-Driven Design**: Clean architecture with clear separation of concerns
-- **RESTful API**: HTTP endpoints for blog operations
-- **PostgreSQL**: Persistent data storage
+- **RESTful API**: HTTP endpoints for blog operations with filtering and search
+- **PostgreSQL**: Persistent data storage with proper data types
 - **Database Migrations**: Version-controlled schema changes
 
 ## Prerequisites
@@ -151,22 +166,100 @@ Content-Type: application/json
 - `Content`: Required, 10-10000 characters
 - `Author`: Required, 3-255 characters
 
-### Get Post
+### Get Post by ID
 
 ```bash
 GET /posts/:id
 ```
 
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "created_at": "2025-12-17T19:16:32Z",
+  "updated_at": "2025-12-17T19:16:32Z",
+  "slug": "my-first-post",
+  "title": "My First Post",
+  "content": "This is the content of my first blog post.",
+  "author": "John Doe"
+}
+```
+
+### Get Post by Slug
+
+```bash
+GET /posts/slug/:slug
+```
+
+**Example:**
+```bash
+GET /posts/slug/my-first-post
+```
+
+**Response:** Same as Get Post by ID
+
+### List Posts
+
+```bash
+GET /posts
+GET /posts?text=search+term
+GET /posts?author=John+Doe
+```
+
+**Query Parameters:**
+- `text` (optional): Search posts by content text
+- `author` (optional): Filter posts by author name
+
+**Response:**
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "created_at": "2025-12-17T19:16:32Z",
+    "updated_at": "2025-12-17T19:16:32Z",
+    "slug": "my-first-post",
+    "title": "My First Post",
+    "content": "This is the content of my first blog post.",
+    "author": "John Doe"
+  }
+]
+```
+
+### Delete Post
+
+```bash
+DELETE /posts/:id
+```
+
+**Response:**
+```json
+{
+  "message": "Post deleted"
+}
+```
+
+**Note:** The delete operation is processed asynchronously via Kafka.
+
 ## How It Works
 
-### Command Flow
+### Command Flow (Write Operations)
 
-1. **Client sends POST request** to `/posts` endpoint
-2. **Server validates** the request and creates a `CreatePostCommand`
-3. **Command is published** to Kafka topic `commands.CreatePostCommand`
+1. **Client sends POST/DELETE request** to `/posts` or `/posts/:id` endpoint
+2. **Server validates** the request and creates a command (`CreatePostCommand` or `DeletePostCommand`)
+3. **Command is published** to Kafka topic `commands.{CommandName}`
 4. **Consumer service** receives the command from Kafka
-5. **Command handler** processes the command and saves the post to the database
+5. **Command handler** processes the command and modifies the database
 6. **Events can be published** for further processing (e.g., notifications, search indexing)
+
+### Query Flow (Read Operations)
+
+1. **Client sends GET request** to a query endpoint (e.g., `/posts`, `/posts/:id`, `/posts/slug/:slug`)
+2. **Server creates a query object** (e.g., `GetPostQuery`, `FindAllQuery`, `FindBySlugQuery`)
+3. **Query is executed** synchronously through the Query Bus
+4. **Query handler** retrieves data from the repository
+5. **Response is returned** immediately to the client
+
+**Key Difference:** Queries are handled synchronously for immediate responses, while commands are processed asynchronously via Kafka for better scalability and decoupling.
 
 ### Message Topics
 
@@ -179,15 +272,23 @@ GET /posts/:id
 
 ```sql
 CREATE TABLE posts (
-    id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
-    title TEXT NOT NULL,
+    id UUID PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    author TEXT NOT NULL
+    author VARCHAR(255) NOT NULL
 );
 ```
+
+**Schema Details:**
+- **id**: UUID type for proper unique identifier handling
+- **created_at/updated_at**: TIMESTAMPTZ (timestamp with timezone) for accurate datetime tracking
+- **slug**: VARCHAR(255) with UNIQUE constraint for SEO-friendly URLs
+- **title**: VARCHAR(255) for post titles
+- **content**: TEXT type for unlimited post content
+- **author**: VARCHAR(255) for author names
 
 ## Development
 
@@ -238,8 +339,9 @@ To create a new migration:
 
 ### Architecture Libraries
 
-- **CQRS**: Command Query Responsibility Segregation implementation
-- **UUID**: Unique identifier generation
+- **CQRS**: Command Query Responsibility Segregation implementation (Watermill)
+- **Query Bus**: Custom synchronous query handling implementation
+- **UUID**: Unique identifier generation (Google UUID library)
 
 ## Docker Services
 
