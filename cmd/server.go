@@ -24,15 +24,61 @@ func main() {
 		})
 	})
 
+	r.GET("/posts", func(ctx *gin.Context) {
+		text := ctx.Query("text")
+		author := ctx.Query("author")
+
+		var result any
+		var err error
+
+		if text != "" {
+			q := query.NewFindAllByTextQuery(text)
+			result, err = container.QueryBus.Execute(context.Background(), q)
+		} else if author != "" {
+			q := query.NewFindAllByAuthorQuery(author)
+			result, err = container.QueryBus.Execute(context.Background(), q)
+		} else {
+			q := query.NewFindAllQuery()
+			result, err = container.QueryBus.Execute(context.Background(), q)
+		}
+
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx.JSON(http.StatusOK, result)
+	})
+
 	r.GET("/posts/:id", func(ctx *gin.Context) {
 		id := ctx.Param("id")
 
-		q  := query.NewGetPostQuery(uuid.MustParse(id))
+		parsedUUID, err := uuid.Parse(id)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID"})
+			return
+		}
+
+		q := query.NewGetPostQuery(parsedUUID)
 		post, err := container.QueryBus.Execute(context.Background(), q)
 
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 
+			return
+		}
+
+		ctx.JSON(http.StatusOK, post)
+	})
+
+	r.GET("/posts/slug/:slug", func(ctx *gin.Context) {
+		slug := ctx.Param("slug")
+
+		q := query.NewFindBySlugQuery(slug)
+		post, err := container.QueryBus.Execute(context.Background(), q)
+
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -59,6 +105,15 @@ func main() {
 		commandBus.Send(context.Background(), command)
 
 		ctx.JSON(http.StatusAccepted, gin.H{"message": "Post created"})
+	})
+
+	r.DELETE("/posts/:id", func(ctx *gin.Context) {
+		id := ctx.Param("id")
+
+		command := command.NewDeletePostCommand(uuid.MustParse(id))
+		commandBus.Send(context.Background(), command)
+
+		ctx.JSON(http.StatusAccepted, gin.H{"message": "Post deleted"})
 	})
 
 	r.Run()

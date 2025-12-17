@@ -34,7 +34,7 @@ type Container struct {
 var lock = sync.Mutex{}
 var container *Container
 
-//TODO: Maybe replace with uber/dig
+// TODO: Maybe replace with uber/dig
 func GetContainer() *Container {
 	if container == nil {
 		lock.Lock()
@@ -45,7 +45,7 @@ func GetContainer() *Container {
 		}
 
 		postRepository := infra_repository.NewPostRepository(db)
-	
+
 		queryBus := buildQueryBus()
 		registerQueryHandlers(queryBus, postRepository)
 
@@ -291,11 +291,16 @@ func buildEventProcessor(
 
 func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository) {
 	queryBus.RegisterHandler(query.GetPostQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(query.FindAllQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(query.FindAllByTextQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(query.FindAllByAuthorQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(query.FindBySlugQueryHandler{PostRepository: postRepository})
 }
 
 func registerCommandHandlers(commandProcessor *cqrs.CommandProcessor, postRepository domain_repository.PostRepository, eventBus *cqrs.EventBus) {
 	commandProcessor.AddHandlers(
 		cqrs.NewCommandHandler("CreatePostCommandHandler", command.CreatePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
+		cqrs.NewCommandHandler("DeletePostCommandHandler", command.DeletePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
 	)
 }
 
