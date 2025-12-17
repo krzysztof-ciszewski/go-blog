@@ -1,9 +1,9 @@
 CREATE TABLE posts (
-    id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
-    title TEXT NOT NULL,
+    id UUID PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    author TEXT NOT NULL
+    author VARCHAR(255) NOT NULL
 );
