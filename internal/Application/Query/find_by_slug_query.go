@@ -1,13 +1,9 @@
 package query
 
 type FindBySlugQuery struct {
-	slug string `json:"slug"`
-}
-
-func (q FindBySlugQuery) Slug() string {
-	return q.slug
+	Slug string `json:"slug"`
 }
 
 func NewFindBySlugQuery(slug string) FindBySlugQuery {
-	return FindBySlugQuery{slug: slug}
+	return FindBySlugQuery{Slug: slug}
 }

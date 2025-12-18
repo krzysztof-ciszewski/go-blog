@@ -16,7 +16,7 @@ func (h GetPostQueryHandler) Handle(ctx context.Context, query any) (any, error)
 		return view.PostView{}, nil
 	}
 
-	post, err := h.PostRepository.FindByID(getPostQuery.Id())
+	post, err := h.PostRepository.FindByID(getPostQuery.Id)
 
 	if err != nil {
 		return view.PostView{}, err

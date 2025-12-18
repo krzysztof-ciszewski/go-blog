@@ -16,7 +16,7 @@ func (h FindBySlugQueryHandler) Handle(ctx context.Context, query any) (any, err
 		return view.PostView{}, nil
 	}
 
-	post, err := h.PostRepository.FindBySlug(findBySlugQuery.Slug())
+	post, err := h.PostRepository.FindBySlug(findBySlugQuery.Slug)
 
 	if err != nil {
 		return view.PostView{}, err

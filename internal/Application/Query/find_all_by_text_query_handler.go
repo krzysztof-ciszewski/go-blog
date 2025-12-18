@@ -16,7 +16,7 @@ func (h FindAllByTextQueryHandler) Handle(ctx context.Context, query any) (any, 
 		return []view.PostView{}, nil
 	}
 
-	posts, err := h.PostRepository.FindAllByText(findAllByTextQuery.Text())
+	posts, err := h.PostRepository.FindAllByText(findAllByTextQuery.Text)
 
 	if err != nil {
 		return []view.PostView{}, err

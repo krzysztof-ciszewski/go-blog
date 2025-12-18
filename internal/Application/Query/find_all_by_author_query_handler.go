@@ -16,7 +16,7 @@ func (h FindAllByAuthorQueryHandler) Handle(ctx context.Context, query any) (any
 		return []view.PostView{}, nil
 	}
 
-	posts, err := h.PostRepository.FindAllByAuthor(findAllByAuthorQuery.Author())
+	posts, err := h.PostRepository.FindAllByAuthor(findAllByAuthorQuery.Author)
 
 	if err != nil {
 		return []view.PostView{}, err
