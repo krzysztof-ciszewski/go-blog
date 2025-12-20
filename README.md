@@ -6,7 +6,7 @@ A microservices-based blog application built with Go, implementing CQRS (Command
 
 This project follows **Domain-Driven Design (DDD)** principles and implements the **CQRS pattern**:
 
-- **Commands**: Write operations that modify state (e.g., creating, deleting posts). Commands are sent asynchronously via Kafka.
+- **Commands**: Write operations that modify state (e.g., creating posts, deleting posts, creating users). Commands are sent asynchronously via Kafka.
 - **Queries**: Read operations that retrieve data (e.g., fetching posts, filtering by author/text). Queries are handled synchronously via a Query Bus.
 - **Events**: Domain events published after state changes for further processing (e.g., notifications, search indexing)
 
@@ -31,18 +31,20 @@ blog/
 │   └── migrate.go                 # Database migration runner
 ├── internal/
 │   ├── Application/              # Application layer (CQRS)
-│   │   ├── Command/              # Command handlers (CreatePost, DeletePost)
+│   │   ├── Command/              # Command handlers
+│   │   │   ├── Post/            # Post commands (CreatePost, DeletePost)
+│   │   │   └── User/            # User commands (CreateUser)
 │   │   ├── Query/                # Query handlers (GetPost, FindAll, FindBySlug, etc.)
 │   │   └── View/                 # Read models
 │   ├── Domain/                   # Domain layer
-│   │   ├── Entity/              # Domain entities
-│   │   └── Repository/           # Repository interfaces
+│   │   ├── Entity/              # Domain entities (Post, User)
+│   │   └── Repository/           # Repository interfaces (PostRepository, UserRepository)
 │   ├── Infrastructure/           # Infrastructure layer
 │   │   ├── DependencyInjection/  # DI container
 │   │   ├── QueryBus/            # Query Bus implementation
 │   │   └── Repository/           # Repository implementations
 │   └── UserInterface/           # Presentation layer
-│       └── Api/                 # REST API handlers
+│       └── Api/                 # REST API handlers and middleware
 ├── db/
 │   └── migrations/              # Database migrations
 └── docker-compose.yaml          # Docker Compose configuration
@@ -57,6 +59,8 @@ blog/
 - **Event-Driven Architecture**: Uses Kafka for asynchronous message processing
 - **Domain-Driven Design**: Clean architecture with clear separation of concerns
 - **RESTful API**: HTTP endpoints for blog operations with filtering and search
+- **OAuth Authentication**: GitHub OAuth integration for user authentication
+- **User Management**: User entity with OAuth token storage
 - **PostgreSQL**: Persistent data storage with proper data types
 - **Database Migrations**: Version-controlled schema changes
 
@@ -240,12 +244,56 @@ DELETE /posts/:id
 
 **Note:** The delete operation is processed asynchronously via Kafka.
 
+### Authentication Endpoints
+
+#### OAuth Login
+
+```bash
+GET /auth/:provider
+```
+
+**Example:**
+```bash
+GET /auth/github
+```
+
+**Response:** Redirects to OAuth provider for authentication
+
+#### OAuth Callback
+
+```bash
+GET /auth/:provider/callback
+```
+
+**Example:**
+```bash
+GET /auth/github/callback
+```
+
+**Response:** Redirects to client URL after successful authentication
+
+**Note:** This endpoint automatically creates a user account if one doesn't exist. User creation is processed asynchronously via Kafka using `CreateUserCommand`.
+
+#### Logout
+
+```bash
+GET /auth/logout/:provider
+```
+
+**Example:**
+```bash
+GET /auth/logout/github
+```
+
+**Response:** Logs out the user and redirects to home
+
 ## How It Works
 
 ### Command Flow (Write Operations)
 
-1. **Client sends POST/DELETE request** to `/posts` or `/posts/:id` endpoint
-2. **Server validates** the request and creates a command (`CreatePostCommand` or `DeletePostCommand`)
+1. **Client sends POST/DELETE request** to `/posts` or `/posts/:id` endpoint, OR
+   **OAuth callback** triggers user creation via `/auth/:provider/callback`
+2. **Server validates** the request and creates a command (`CreatePostCommand`, `DeletePostCommand`, or `CreateUserCommand`)
 3. **Command is published** to Kafka topic `commands.{CommandName}`
 4. **Consumer service** receives the command from Kafka
 5. **Command handler** processes the command and modifies the database
@@ -263,7 +311,7 @@ DELETE /posts/:id
 
 ### Message Topics
 
-- **Commands**: `commands.{CommandName}` (e.g., `commands.CreatePostCommand`)
+- **Commands**: `commands.{CommandName}` (e.g., `commands.CreatePostCommand`, `commands.CreateUserCommand`)
 - **Events**: `events.{EventName}` (e.g., `events.PostCreated`)
 
 ## Database Schema
@@ -289,6 +337,48 @@ CREATE TABLE posts (
 - **title**: VARCHAR(255) for post titles
 - **content**: TEXT type for unlimited post content
 - **author**: VARCHAR(255) for author names
+
+### Users Table
+
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password TEXT,
+    provider VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    provider_user_id VARCHAR(255) NOT NULL,
+    avatar_url VARCHAR(500),
+    access_token TEXT NOT NULL,
+    access_token_secret TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    id_token TEXT NOT NULL
+);
+```
+
+**Schema Details:**
+- **id**: UUID type for proper unique identifier handling
+- **created_at/updated_at**: TIMESTAMPTZ (timestamp with timezone) for accurate datetime tracking
+- **email**: VARCHAR(255) with UNIQUE constraint for user email addresses
+- **password**: TEXT type for password storage (nullable, used for local authentication)
+- **provider**: VARCHAR(255) for OAuth provider name (e.g., "github", "google")
+- **name**: VARCHAR(255) for user's full name (optional)
+- **first_name/last_name**: VARCHAR(255) for user's first and last names (optional)
+- **provider_user_id**: VARCHAR(255) for the user's ID from the OAuth provider
+- **avatar_url**: VARCHAR(500) for user's profile picture URL (optional)
+- **access_token/access_token_secret**: TEXT type for OAuth access tokens
+- **refresh_token**: TEXT type for OAuth refresh token
+- **expires_at**: TIMESTAMPTZ for token expiration time
+- **id_token**: TEXT type for OAuth ID token
+
+**Indexes:**
+- `idx_users_email`: Index on email for fast lookups
+- `idx_users_provider_user_id`: Composite index on (provider, provider_user_id) for OAuth lookups
 
 ## Development
 
@@ -326,6 +416,11 @@ To create a new migration:
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable` |
 | `KAFKA_BROKER` | Kafka broker address | `kafka:9093` (Docker) or `localhost:9092` (local) |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for OAuth authentication |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for OAuth authentication |
+| `SESSION_KEY` | Session encryption key | Required for session management |
+| `SESSION_NAME` | Session cookie name | Required for session management |
+| `CLIENT_URL` | Frontend client URL for OAuth redirects | Required for OAuth callbacks |
 
 ## Dependencies
 
@@ -342,6 +437,8 @@ To create a new migration:
 - **CQRS**: Command Query Responsibility Segregation implementation (Watermill)
 - **Query Bus**: Custom synchronous query handling implementation
 - **UUID**: Unique identifier generation (Google UUID library)
+- **Goth**: OAuth authentication library for multiple providers
+- **Gorilla Sessions**: Session management for authenticated users
 
 ## Docker Services
 
