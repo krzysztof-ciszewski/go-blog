@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-kafka/v3/pkg/kafka"
+	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
@@ -63,8 +63,9 @@ func GetContainer() *Container {
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
 		router := buildRouter(logger)
-		publisher := buildPublisher(logger)
-		subscriber := buildSubscriber(logger)
+		amqpConfig := amqp.NewDurableQueueConfig(os.Getenv("AMQP_URL"))
+		publisher := buildPublisher(&amqpConfig, logger)
+		subscriber := buildSubscriber(&amqpConfig, logger)
 		generateCommandsTopic := buildGenerateCommandsTopicFunc()
 		generateEventsTopic := buildGenerateEventsTopicFunc()
 		commandBus := buildCommandBus(logger, cqrsMarshaller, publisher, generateCommandsTopic)
@@ -126,14 +127,8 @@ func buildCqrsMarshaller() *cqrs.JSONMarshaler {
 	}
 }
 
-func buildPublisher(logger watermill.LoggerAdapter) *kafka.Publisher {
-	publisher, err := kafka.NewPublisher(
-		kafka.PublisherConfig{
-			Brokers:   []string{os.Getenv("KAFKA_BROKER")},
-			Marshaler: kafka.DefaultMarshaler{},
-		},
-		logger,
-	)
+func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) *amqp.Publisher {
+	publisher, err := amqp.NewPublisher(*amqpConfig, logger)
 
 	if err != nil {
 		panic(err)
@@ -142,14 +137,8 @@ func buildPublisher(logger watermill.LoggerAdapter) *kafka.Publisher {
 	return publisher
 }
 
-func buildSubscriber(logger watermill.LoggerAdapter) *kafka.Subscriber {
-	subscriber, err := kafka.NewSubscriber(
-		kafka.SubscriberConfig{
-			Brokers:     []string{os.Getenv("KAFKA_BROKER")},
-			Unmarshaler: kafka.DefaultMarshaler{},
-		},
-		logger,
-	)
+func buildSubscriber(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) *amqp.Subscriber {
+	subscriber, err := amqp.NewSubscriber(*amqpConfig, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -160,7 +149,7 @@ func buildSubscriber(logger watermill.LoggerAdapter) *kafka.Subscriber {
 func buildCommandBus(
 	logger watermill.LoggerAdapter,
 	cqrsMarshaller *cqrs.JSONMarshaler,
-	publisher *kafka.Publisher,
+	publisher *amqp.Publisher,
 	generateCommandsTopic func(commandName string) string,
 ) *cqrs.CommandBus {
 	commandBus, err := cqrs.NewCommandBusWithConfig(publisher, cqrs.CommandBusConfig{
@@ -188,7 +177,7 @@ func buildCommandBus(
 }
 
 func buildEventBus(
-	publisher *kafka.Publisher,
+	publisher *amqp.Publisher,
 	cqrsMarshaller *cqrs.JSONMarshaler,
 	logger watermill.LoggerAdapter,
 	generateEventsTopic func(eventName string) string,
@@ -218,7 +207,7 @@ func buildEventBus(
 
 func buildCommandProcessor(
 	router *message.Router,
-	subscriber *kafka.Subscriber,
+	subscriber *amqp.Subscriber,
 	cqrsMarshaller *cqrs.JSONMarshaler,
 	logger watermill.LoggerAdapter,
 	generateCommandsTopic func(commandName string) string,
@@ -259,7 +248,7 @@ func buildCommandProcessor(
 
 func buildEventProcessor(
 	router *message.Router,
-	subscriber *kafka.Subscriber,
+	subscriber *amqp.Subscriber,
 	cqrsMarshaller *cqrs.JSONMarshaler,
 	logger watermill.LoggerAdapter,
 	generateEventsTopic func(eventName string) string,

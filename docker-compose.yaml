@@ -16,38 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: blog-zookeeper
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: blog-rabbitmq
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
     ports:
-      - "2181:2181"
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: blog-kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,13 +55,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      rabbitmq:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      KAFKA_BROKER: ${KAFKA_BROKER}
+      AMQP_URL: ${AMQP_URL:-amqp://guest:guest@rabbitmq:5672/}
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -93,14 +74,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      kafka:
+      rabbitmq:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      KAFKA_BROKER: ${KAFKA_BROKER}
+      AMQP_URL: ${AMQP_URL:-amqp://guest:guest@rabbitmq:5672/}
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  rabbitmq_data:
