@@ -6,9 +6,13 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	godotenv.Load(".env.local")
+	godotenv.Load()
+
 	m, err := migrate.New(
 		"file://./db/migrations",
 		os.Getenv("DATABASE_URL"),

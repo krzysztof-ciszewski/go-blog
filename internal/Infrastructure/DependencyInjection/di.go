@@ -3,7 +3,8 @@ package dependency_injection
 import (
 	"database/sql"
 	"log/slog"
-	command "main/internal/Application/Command"
+	post_command "main/internal/Application/Command/Post"
+	user_command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query"
 	domain_repository "main/internal/Domain/Repository"
 	query_bus "main/internal/Infrastructure/QueryBus"
@@ -17,12 +18,12 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 type Container struct {
 	DB               *sql.DB
-	PostRepository   domain_repository.PostRepository
 	QueryBus         query_bus.QueryBus
 	CommandBus       *cqrs.CommandBus
 	EventBus         *cqrs.EventBus
@@ -36,6 +37,15 @@ var container *Container
 
 // TODO: Maybe replace with uber/dig
 func GetContainer() *Container {
+	err := godotenv.Load(".env.local")
+	if err != nil {
+		panic(err)
+	}
+	err = godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
@@ -45,6 +55,7 @@ func GetContainer() *Container {
 		}
 
 		postRepository := infra_repository.NewPostRepository(db)
+		userRepository := infra_repository.NewUserRepository(db)
 
 		queryBus := buildQueryBus()
 		registerQueryHandlers(queryBus, postRepository)
@@ -59,13 +70,12 @@ func GetContainer() *Container {
 		commandBus := buildCommandBus(logger, cqrsMarshaller, publisher, generateCommandsTopic)
 		eventBus := buildEventBus(publisher, cqrsMarshaller, logger, generateEventsTopic)
 		commandProcessor := buildCommandProcessor(router, subscriber, cqrsMarshaller, logger, generateCommandsTopic)
-		registerCommandHandlers(commandProcessor, postRepository, eventBus)
+		registerCommandHandlers(commandProcessor, postRepository, userRepository, eventBus)
 		eventProcessor := buildEventProcessor(router, subscriber, cqrsMarshaller, logger, generateEventsTopic)
 		registerEventHandlers(eventProcessor, eventBus)
 
 		container = &Container{
 			DB:               db,
-			PostRepository:   postRepository,
 			QueryBus:         queryBus,
 			CommandBus:       commandBus,
 			EventBus:         eventBus,
@@ -297,10 +307,16 @@ func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_re
 	queryBus.RegisterHandler(query.FindBySlugQueryHandler{PostRepository: postRepository})
 }
 
-func registerCommandHandlers(commandProcessor *cqrs.CommandProcessor, postRepository domain_repository.PostRepository, eventBus *cqrs.EventBus) {
+func registerCommandHandlers(
+	commandProcessor *cqrs.CommandProcessor,
+	postRepository domain_repository.PostRepository,
+	userRepository domain_repository.UserRepository,
+	eventBus *cqrs.EventBus,
+) {
 	commandProcessor.AddHandlers(
-		cqrs.NewCommandHandler("CreatePostCommandHandler", command.CreatePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
-		cqrs.NewCommandHandler("DeletePostCommandHandler", command.DeletePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
+		cqrs.NewCommandHandler("CreatePostCommandHandler", post_command.CreatePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
+		cqrs.NewCommandHandler("DeletePostCommandHandler", post_command.DeletePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
+		cqrs.NewCommandHandler("CreateUserCommandHandler", user_command.CreateUserCommandHandler{UserRepository: userRepository, EventBus: eventBus}.Handle),
 	)
 }
 

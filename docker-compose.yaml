@@ -3,9 +3,9 @@ services:
     image: postgres:18-alpine
     container_name: blog-postgres
     environment:
-      POSTGRES_USER: blog
-      POSTGRES_PASSWORD: blogpassword
-      POSTGRES_DB: blog
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -61,7 +61,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL}
     volumes:
       - ./db/migrations:/app/db/migrations
     command: ["./migrate"]
@@ -79,8 +79,8 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable
-      KAFKA_BROKER: kafka:9093
+      DATABASE_URL: ${DATABASE_URL}
+      KAFKA_BROKER: ${KAFKA_BROKER}
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -98,10 +98,9 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable
-      KAFKA_BROKER: kafka:9093
+      DATABASE_URL: ${DATABASE_URL}
+      KAFKA_BROKER: ${KAFKA_BROKER}
     restart: unless-stopped
 
 volumes:
   postgres_data:
-
