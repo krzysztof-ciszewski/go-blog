@@ -58,7 +58,7 @@ func GetContainer() *Container {
 		userRepository := infra_repository.NewUserRepository(db)
 
 		queryBus := buildQueryBus()
-		registerQueryHandlers(queryBus, postRepository)
+		registerQueryHandlers(queryBus, postRepository, userRepository)
 
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
@@ -297,12 +297,13 @@ func buildEventProcessor(
 	return eventProcessor
 }
 
-func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository) {
+func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository, userRepository domain_repository.UserRepository) {
 	queryBus.RegisterHandler(query.GetPostQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(query.FindAllQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(query.FindAllByTextQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(query.FindAllByAuthorQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(query.FindBySlugQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(query.FindUserByQueryHandler{UserRepository: userRepository})
 }
 
 func registerCommandHandlers(

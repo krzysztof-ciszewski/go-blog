@@ -9,5 +9,5 @@ import (
 type UserRepository interface {
 	Save(user entity.User) error
 	FindByID(id uuid.UUID) (entity.User, error)
-	FindByEmail(email string) (entity.User, error)
+	FindByProviderUserIdAndEmail(providerUserId string, userEmail string) (entity.User, error)
 }

@@ -91,7 +91,6 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 
 	logger.Debug("Exchange declared", nil)
 
-
 	if err := channel.QueueBind(
 		params.QueueName,
 		params.RoutingKey,

@@ -107,7 +107,7 @@ func (u userRepository) FindByID(id uuid.UUID) (entity.User, error) {
 	), nil
 }
 
-func (u userRepository) FindByEmail(email string) (entity.User, error) {
+func (u userRepository) FindByProviderUserIdAndEmail(filteredProviderUserId string, filteredUserEmail string) (entity.User, error) {
 	row := u.db.QueryRow(`
 		SELECT
 			id,
@@ -121,13 +121,13 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 			last_name,
 			provider_user_id,
 			avatar_url
-		FROM users WHERE email = $1
-	`, email)
+		FROM users WHERE email = $1 AND provider_user_id = $2
+	`, filteredUserEmail, filteredProviderUserId)
 
 	var userId uuid.UUID
 	var createdAt time.Time
 	var updatedAt time.Time
-	var userEmail string
+	var email string
 	var password sql.NullString
 	var provider string
 	var name sql.NullString
@@ -140,7 +140,7 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 		&userId,
 		&createdAt,
 		&updatedAt,
-		&userEmail,
+		&email,
 		&password,
 		&provider,
 		&name,
@@ -158,7 +158,7 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 		userId,
 		createdAt,
 		updatedAt,
-		userEmail,
+		email,
 		nullStringValue(password),
 		provider,
 		nullStringValue(name),
