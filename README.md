@@ -71,67 +71,127 @@ blog/
 
 - Go 1.25.5 or higher
 - Docker and Docker Compose
-- Make (optional, for convenience commands)
+- PostgreSQL 18 (if running manually)
+- RabbitMQ 3 (if running manually)
+- GitHub OAuth App (for authentication)
 
 ## Getting Started
 
 ### Using Docker Compose (Recommended)
 
-1. **Start all services:**
+1. **Create a `.env` file** in the project root with the required environment variables:
+   ```bash
+   POSTGRES_USER=blog
+   POSTGRES_PASSWORD=blogpassword
+   POSTGRES_DB=blog
+   RABBITMQ_USER=guest
+   RABBITMQ_PASSWORD=guest
+   DATABASE_URL=postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable
+   AMQP_URL=amqp://guest:guest@rabbitmq:5672/
+   AMQP_DLX_EXCHANGE=my-dlx
+   AMQP_DLX_QUEUE_SUFFIX=dlq
+   AMQP_DLX_ROUTING_KEY_SUFFIX=dlq
+   GITHUB_CLIENT_ID=your_github_client_id
+   GITHUB_CLIENT_SECRET=your_github_client_secret
+   SESSION_SECRET=your_32_byte_or_longer_secret_key
+   SESSION_NAME=blog_session
+   API_URL=http://localhost:8080
+   CLIENT_URL=http://localhost:3000
+   ```
+
+2. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
    This will start:
-   - PostgreSQL database
-   - RabbitMQ message broker
-   - Database migration service
+   - PostgreSQL database (port 5432)
+   - RabbitMQ message broker (ports 5672 and 15672 for management UI)
+   - Database migration service (runs once)
    - API server (port 8080)
    - RabbitMQ consumer service
 
-2. **Check service status:**
+3. **Check service status:**
    ```bash
    docker-compose ps
    ```
 
-3. **View logs:**
+4. **View logs:**
    ```bash
    docker-compose logs -f server
    docker-compose logs -f consume
    ```
 
+5. **Access RabbitMQ Management UI:**
+   - URL: `http://localhost:15672`
+   - Default credentials: `guest` / `guest`
+
 ### Manual Setup
 
-1. **Start dependencies:**
+1. **Install dependencies:**
+   ```bash
+   go mod download
+   ```
+
+2. **Start dependencies:**
    ```bash
    docker-compose up -d postgres rabbitmq
    ```
 
-2. **Set environment variables:**
+   Or install and run PostgreSQL and RabbitMQ manually.
+
+3. **Set environment variables:**
+
+   Create a `.env` or `.env.local` file with the following variables:
+   ```bash
+   DATABASE_URL="postgres://blog:blogpassword@localhost:5432/blog?sslmode=disable"
+   AMQP_URL="amqp://guest:guest@localhost:5672/"
+   AMQP_DLX_EXCHANGE="my-dlx"
+   AMQP_DLX_QUEUE_SUFFIX="dlq"
+   AMQP_DLX_ROUTING_KEY_SUFFIX="dlq"
+   GITHUB_CLIENT_ID="your_github_client_id"
+   GITHUB_CLIENT_SECRET="your_github_client_secret"
+   SESSION_SECRET="your_32_byte_or_longer_secret_key"
+   SESSION_NAME="blog_session"
+   API_URL="http://localhost:8080"
+   CLIENT_URL="http://localhost:3000"
+   ```
+
+   The migration tool automatically loads `.env.local` and `.env` files. For the server and consumer, you may need to export them in your shell:
    ```bash
    export DATABASE_URL="postgres://blog:blogpassword@localhost:5432/blog?sslmode=disable"
    export AMQP_URL="amqp://guest:guest@localhost:5672/"
    export AMQP_DLX_EXCHANGE="my-dlx"
    export AMQP_DLX_QUEUE_SUFFIX="dlq"
    export AMQP_DLX_ROUTING_KEY_SUFFIX="dlq"
+   export GITHUB_CLIENT_ID="your_github_client_id"
+   export GITHUB_CLIENT_SECRET="your_github_client_secret"
+   export SESSION_SECRET="your_32_byte_or_longer_secret_key"
+   export SESSION_NAME="blog_session"
+   export API_URL="http://localhost:8080"
+   export CLIENT_URL="http://localhost:3000"
    ```
 
-3. **Run database migrations:**
+4. **Run database migrations:**
    ```bash
    go run cmd/migrate.go
    ```
 
-4. **Start the API server:**
+5. **Start the API server:**
    ```bash
    go run cmd/server.go
    ```
 
-5. **Start the consumer service (in a separate terminal):**
+   The server will start on port 8080 by default.
+
+6. **Start the consumer service (in a separate terminal):**
    ```bash
    go run cmd/consume.go
    ```
 
 ## API Endpoints
+
+All API endpoints are prefixed with `/api/v1` and require authentication via session cookies (except OAuth endpoints). Authentication is handled through GitHub OAuth, and a session cookie is set after successful login.
 
 ### Health Check
 
@@ -149,8 +209,9 @@ GET /ping
 ### Create Post
 
 ```bash
-POST /posts
+POST /api/v1/posts
 Content-Type: application/json
+Cookie: blog_session=<session_cookie>
 
 {
   "Id": "550e8400-e29b-41d4-a716-446655440000",
@@ -175,10 +236,13 @@ Content-Type: application/json
 - `Content`: Required, 10-10000 characters
 - `Author`: Required, 3-255 characters
 
+**Note:** The create operation is processed asynchronously via RabbitMQ.
+
 ### Get Post by ID
 
 ```bash
-GET /posts/:id
+GET /api/v1/posts/:id
+Cookie: blog_session=<session_cookie>
 ```
 
 **Response:**
@@ -197,12 +261,13 @@ GET /posts/:id
 ### Get Post by Slug
 
 ```bash
-GET /posts/slug/:slug
+GET /api/v1/posts/slug/:slug
+Cookie: blog_session=<session_cookie>
 ```
 
 **Example:**
 ```bash
-GET /posts/slug/my-first-post
+GET /api/v1/posts/slug/my-first-post
 ```
 
 **Response:** Same as Get Post by ID
@@ -210,9 +275,10 @@ GET /posts/slug/my-first-post
 ### List Posts
 
 ```bash
-GET /posts
-GET /posts?text=search+term
-GET /posts?author=John+Doe
+GET /api/v1/posts?text=search+term
+GET /api/v1/posts?author=John+Doe
+GET /api/v1/posts
+Cookie: blog_session=<session_cookie>
 ```
 
 **Query Parameters:**
@@ -237,7 +303,8 @@ GET /posts?author=John+Doe
 ### Delete Post
 
 ```bash
-DELETE /posts/:id
+DELETE /api/v1/posts/:id
+Cookie: blog_session=<session_cookie>
 ```
 
 **Response:**
@@ -251,6 +318,8 @@ DELETE /posts/:id
 
 ### Authentication Endpoints
 
+Authentication endpoints do not require authentication and are not prefixed with `/api/v1`.
+
 #### OAuth Login
 
 ```bash
@@ -262,7 +331,9 @@ GET /auth/:provider
 GET /auth/github
 ```
 
-**Response:** Redirects to OAuth provider for authentication
+**Response:** Redirects to OAuth provider (GitHub) for authentication
+
+**Note:** If the user is already authenticated, they will be redirected to `CLIENT_URL`.
 
 #### OAuth Callback
 
@@ -275,9 +346,12 @@ GET /auth/:provider/callback
 GET /auth/github/callback
 ```
 
-**Response:** Redirects to client URL after successful authentication
+**Response:** Redirects to `CLIENT_URL` after successful authentication
 
-**Note:** This endpoint automatically creates a user account if one doesn't exist. User creation is processed asynchronously via RabbitMQ using `CreateUserCommand`.
+**Note:**
+- This endpoint automatically creates a user account if one doesn't exist
+- User creation is processed asynchronously via RabbitMQ using `CreateUserCommand`
+- A session is created and stored in a cookie
 
 #### Logout
 
@@ -290,13 +364,13 @@ GET /auth/logout/:provider
 GET /auth/logout/github
 ```
 
-**Response:** Logs out the user and redirects to home
+**Response:** Logs out the user, clears the session, and redirects to home (`/`)
 
 ## How It Works
 
 ### Command Flow (Write Operations)
 
-1. **Client sends POST/DELETE request** to `/posts` or `/posts/:id` endpoint, OR
+1. **Client sends POST/DELETE request** to `/api/v1/posts` or `/api/v1/posts/:id` endpoint, OR
    **OAuth callback** triggers user creation via `/auth/:provider/callback`
 2. **Server validates** the request and creates a command (`CreatePostCommand`, `DeletePostCommand`, or `CreateUserCommand`)
 3. **Command is published** to RabbitMQ queue `commands.{CommandName}`
@@ -307,7 +381,7 @@ GET /auth/logout/github
 
 ### Query Flow (Read Operations)
 
-1. **Client sends GET request** to a query endpoint (e.g., `/posts`, `/posts/:id`, `/posts/slug/:slug`)
+1. **Client sends GET request** to a query endpoint (e.g., `/api/v1/posts`, `/api/v1/posts/:id`, `/api/v1/posts/slug/:slug`)
 2. **Server creates a query object** (e.g., `GetPostQuery`, `FindAllQuery`, `FindBySlugQuery`)
 3. **Query is executed** synchronously through the Query Bus
 4. **Query handler** retrieves data from the repository
@@ -444,9 +518,15 @@ To create a new migration:
 | `AMQP_DLX_ROUTING_KEY_SUFFIX` | Suffix for dead letter routing keys | `dlq` (default if not set) |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for OAuth authentication |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for OAuth authentication |
-| `SESSION_KEY` | Session encryption key | Required for session management |
+| `SESSION_SECRET` | Session encryption key (32+ bytes) | Required for session management |
 | `SESSION_NAME` | Session cookie name | Required for session management |
+| `API_URL` | Base URL of the API server | Required for OAuth callback URLs |
 | `CLIENT_URL` | Frontend client URL for OAuth redirects | Required for OAuth callbacks |
+| `POSTGRES_USER` | PostgreSQL database user | `blog` (Docker Compose) |
+| `POSTGRES_PASSWORD` | PostgreSQL database password | `blogpassword` (Docker Compose) |
+| `POSTGRES_DB` | PostgreSQL database name | `blog` (Docker Compose) |
+| `RABBITMQ_USER` | RabbitMQ username | `guest` (Docker Compose) |
+| `RABBITMQ_PASSWORD` | RabbitMQ password | `guest` (Docker Compose) |
 
 ## Dependencies
 
@@ -464,8 +544,9 @@ To create a new migration:
 - **Query Bus**: Custom synchronous query handling implementation
 - **Topology Builder**: Custom RabbitMQ topology builder for dead letter queue configuration
 - **UUID**: Unique identifier generation (Google UUID library)
-- **Goth**: OAuth authentication library for multiple providers
+- **Goth**: OAuth authentication library for multiple providers (GitHub)
 - **Gorilla Sessions**: Session management for authenticated users
+- **Godotenv**: Environment variable management
 
 ## Docker Services
 
