@@ -101,7 +101,6 @@ func main() {
 
 			if err = session.Save(ctx.Request, ctx.Writer); err != nil {
 				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"success": false,
 					"message": "Error saving user session",
 					"error":   err.Error(),
 				})

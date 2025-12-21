@@ -7,6 +7,7 @@ import (
 	user_command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query"
 	domain_repository "main/internal/Domain/Repository"
+	infra_amqp "main/internal/Infrastructure/Amqp"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	infra_repository "main/internal/Infrastructure/Repository"
 	"os"
@@ -17,10 +18,8 @@ import (
 	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	amqp091 "github.com/rabbitmq/amqp091-go"
 )
 
 type Container struct {
@@ -91,11 +90,6 @@ func GetContainer() *Container {
 }
 
 func setupRouterMiddleware(router *message.Router, publisher *amqp.Publisher) {
-	poisonQueue, err := middleware.PoisonQueue(publisher, "dlq")
-	if err != nil {
-		panic(err)
-	}
-	router.AddMiddleware(poisonQueue)
 }
 
 func buildGenerateCommandsTopicFunc() func(commandName string) string {
@@ -136,7 +130,10 @@ func buildCqrsMarshaller() *cqrs.JSONMarshaler {
 }
 
 func buildAMQPConfig(amqpURL string) amqp.Config {
-	return amqp.NewDurableQueueConfig(amqpURL)
+	config := amqp.NewDurableQueueConfig(amqpURL)
+	config.TopologyBuilder = &infra_amqp.MyTopologyBuilder{}
+	config.Consume.NoRequeueOnNack = true
+	return config
 }
 
 func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) *amqp.Publisher {
