@@ -1,18 +1,19 @@
 # Blog Application
 
-A microservices-based blog application built with Go, implementing CQRS (Command Query Responsibility Segregation) pattern with Kafka for asynchronous message processing.
+A microservices-based blog application built with Go, implementing CQRS (Command Query Responsibility Segregation) pattern with RabbitMQ for asynchronous message processing.
 
 ## Architecture
 
 This project follows **Domain-Driven Design (DDD)** principles and implements the **CQRS pattern**:
 
-- **Commands**: Write operations that modify state (e.g., creating posts, deleting posts, creating users). Commands are sent asynchronously via Kafka.
+- **Commands**: Write operations that modify state (e.g., creating posts, deleting posts, creating users). Commands are sent asynchronously via RabbitMQ.
 - **Queries**: Read operations that retrieve data (e.g., fetching posts, filtering by author/text). Queries are handled synchronously via a Query Bus.
 - **Events**: Domain events published after state changes for further processing (e.g., notifications, search indexing)
+- **Dead Letter Queue**: Failed messages are automatically routed to a "dlq" queue using Watermill's PoisonQueue middleware
 
 ### Query Bus
 
-The application implements a **Query Bus pattern** for handling read operations synchronously. Unlike commands which are processed asynchronously via Kafka, queries are executed directly through the Query Bus, providing immediate responses to API requests.
+The application implements a **Query Bus pattern** for handling read operations synchronously. Unlike commands which are processed asynchronously via RabbitMQ, queries are executed directly through the Query Bus, providing immediate responses to API requests.
 
 The Query Bus supports:
 - **GetPostQuery**: Retrieve a single post by UUID
@@ -27,7 +28,7 @@ The Query Bus supports:
 blog/
 ├── cmd/                          # Application entry points
 │   ├── server.go                  # HTTP API server
-│   ├── consume.go                 # Kafka consumer service
+│   ├── consume.go                 # RabbitMQ consumer service
 │   └── migrate.go                 # Database migration runner
 ├── internal/
 │   ├── Application/              # Application layer (CQRS)
@@ -53,10 +54,11 @@ blog/
 ## Features
 
 - **CQRS Pattern**: Separates read and write operations
-  - **Commands**: Asynchronous write operations via Kafka
+  - **Commands**: Asynchronous write operations via RabbitMQ
   - **Queries**: Synchronous read operations via Query Bus
 - **Query Bus**: Synchronous query handling for immediate API responses
-- **Event-Driven Architecture**: Uses Kafka for asynchronous message processing
+- **Event-Driven Architecture**: Uses RabbitMQ (AMQP) for asynchronous message processing
+- **Dead Letter Queue**: Automatic routing of failed messages to "dlq" queue using PoisonQueue middleware
 - **Domain-Driven Design**: Clean architecture with clear separation of concerns
 - **RESTful API**: HTTP endpoints for blog operations with filtering and search
 - **OAuth Authentication**: GitHub OAuth integration for user authentication
@@ -81,11 +83,10 @@ blog/
 
    This will start:
    - PostgreSQL database
-   - Zookeeper
-   - Kafka
+   - RabbitMQ message broker
    - Database migration service
    - API server (port 8080)
-   - Kafka consumer service
+   - RabbitMQ consumer service
 
 2. **Check service status:**
    ```bash
@@ -102,13 +103,13 @@ blog/
 
 1. **Start dependencies:**
    ```bash
-   docker-compose up -d postgres zookeeper kafka
+   docker-compose up -d postgres rabbitmq
    ```
 
 2. **Set environment variables:**
    ```bash
    export DATABASE_URL="postgres://blog:blogpassword@localhost:5432/blog?sslmode=disable"
-   export KAFKA_BROKER="localhost:9092"
+   export AMQP_URL="amqp://guest:guest@localhost:5672/"
    ```
 
 3. **Run database migrations:**
@@ -242,7 +243,7 @@ DELETE /posts/:id
 }
 ```
 
-**Note:** The delete operation is processed asynchronously via Kafka.
+**Note:** The delete operation is processed asynchronously via RabbitMQ.
 
 ### Authentication Endpoints
 
@@ -272,7 +273,7 @@ GET /auth/github/callback
 
 **Response:** Redirects to client URL after successful authentication
 
-**Note:** This endpoint automatically creates a user account if one doesn't exist. User creation is processed asynchronously via Kafka using `CreateUserCommand`.
+**Note:** This endpoint automatically creates a user account if one doesn't exist. User creation is processed asynchronously via RabbitMQ using `CreateUserCommand`.
 
 #### Logout
 
@@ -294,10 +295,11 @@ GET /auth/logout/github
 1. **Client sends POST/DELETE request** to `/posts` or `/posts/:id` endpoint, OR
    **OAuth callback** triggers user creation via `/auth/:provider/callback`
 2. **Server validates** the request and creates a command (`CreatePostCommand`, `DeletePostCommand`, or `CreateUserCommand`)
-3. **Command is published** to Kafka topic `commands.{CommandName}`
-4. **Consumer service** receives the command from Kafka
+3. **Command is published** to RabbitMQ queue `commands.{CommandName}`
+4. **Consumer service** receives the command from RabbitMQ
 5. **Command handler** processes the command and modifies the database
-6. **Events can be published** for further processing (e.g., notifications, search indexing)
+6. **Failed messages** are automatically routed to the "dlq" dead letter queue via PoisonQueue middleware
+7. **Events can be published** for further processing (e.g., notifications, search indexing)
 
 ### Query Flow (Read Operations)
 
@@ -307,12 +309,17 @@ GET /auth/logout/github
 4. **Query handler** retrieves data from the repository
 5. **Response is returned** immediately to the client
 
-**Key Difference:** Queries are handled synchronously for immediate responses, while commands are processed asynchronously via Kafka for better scalability and decoupling.
+**Key Difference:** Queries are handled synchronously for immediate responses, while commands are processed asynchronously via RabbitMQ for better scalability and decoupling.
 
-### Message Topics
+### Message Queues
 
 - **Commands**: `commands.{CommandName}` (e.g., `commands.CreatePostCommand`, `commands.CreateUserCommand`)
 - **Events**: `events.{EventName}` (e.g., `events.PostCreated`)
+- **Dead Letter Queue**: `dlq` - Failed messages that cannot be processed are automatically routed here
+
+### Dead Letter Queue
+
+The application uses Watermill's **PoisonQueue middleware** to automatically handle failed messages. When a message processing fails (e.g., handler returns an error), the message is automatically published to the "dlq" queue for inspection and manual handling. This prevents message loss and allows for debugging and retry mechanisms.
 
 ## Database Schema
 
@@ -415,7 +422,7 @@ To create a new migration:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable` |
-| `KAFKA_BROKER` | Kafka broker address | `kafka:9093` (Docker) or `localhost:9092` (local) |
+| `AMQP_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672/` (Docker) or `amqp://guest:guest@localhost:5672/` (local) |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for OAuth authentication |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for OAuth authentication |
 | `SESSION_KEY` | Session encryption key | Required for session management |
@@ -428,7 +435,7 @@ To create a new migration:
 
 - **Gin**: HTTP web framework
 - **Watermill**: Event-driven architecture library
-- **Watermill-Kafka**: Kafka integration for Watermill
+- **Watermill-AMQP**: RabbitMQ (AMQP) integration for Watermill
 - **golang-migrate**: Database migration tool
 - **PostgreSQL Driver**: Database connectivity
 
@@ -444,12 +451,11 @@ To create a new migration:
 
 The `docker-compose.yaml` file defines the following services:
 
-- **postgres**: PostgreSQL 16 database
-- **zookeeper**: Zookeeper for Kafka coordination
-- **kafka**: Apache Kafka message broker
+- **postgres**: PostgreSQL 18 database
+- **rabbitmq**: RabbitMQ message broker with management UI (ports 5672 and 15672)
 - **migrate**: Database migration service (runs once)
 - **server**: HTTP API server
-- **consume**: Kafka consumer service
+- **consume**: RabbitMQ consumer service
 
 ## Stopping Services
 
@@ -465,13 +471,23 @@ docker-compose down -v
 
 ## Troubleshooting
 
-### Kafka Connection Issues
+### RabbitMQ Connection Issues
 
-If the consumer can't connect to Kafka:
+If the consumer can't connect to RabbitMQ:
 
-1. Verify Kafka is running: `docker-compose ps kafka`
-2. Check Kafka logs: `docker-compose logs kafka`
-3. Ensure `KAFKA_BROKER` environment variable is correct
+1. Verify RabbitMQ is running: `docker-compose ps rabbitmq`
+2. Check RabbitMQ logs: `docker-compose logs rabbitmq`
+3. Ensure `AMQP_URL` environment variable is correct
+4. Access RabbitMQ Management UI at `http://localhost:15672` (default: guest/guest) to inspect queues and messages
+
+### Dead Letter Queue
+
+To inspect failed messages:
+
+1. Access RabbitMQ Management UI at `http://localhost:15672`
+2. Navigate to the "Queues" tab
+3. Look for the "dlq" queue to see failed messages
+4. Messages in the DLQ can be manually inspected, republished, or deleted
 
 ### Database Connection Issues
 

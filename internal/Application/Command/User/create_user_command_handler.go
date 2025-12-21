@@ -27,11 +27,6 @@ func (h CreateUserCommandHandler) Handle(ctx context.Context, command *CreateUse
 		command.LastName,
 		command.ProviderUserId,
 		command.AvatarURL,
-		command.AccessToken,
-		command.AccessTokenSecret,
-		command.RefreshToken,
-		command.ExpiresAt,
-		command.IDToken,
 	)
 
 	if _, err := h.UserRepository.FindByID(command.Id); err == nil {

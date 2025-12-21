@@ -8,19 +8,14 @@ import (
 
 type User struct {
 	entity
-	Email             string
-	Password          string
-	Provider          string
-	Name              string
-	FirstName         string
-	LastName          string
-	ProviderUserId    string
-	AvatarURL         string
-	AccessToken       string
-	AccessTokenSecret string
-	RefreshToken      string
-	ExpiresAt         time.Time
-	IDToken           string
+	Email          string
+	Password       string
+	Provider       string
+	Name           string
+	FirstName      string
+	LastName       string
+	ProviderUserId string
+	AvatarURL      string
 }
 
 func NewUser(
@@ -35,26 +30,16 @@ func NewUser(
 	lastName string,
 	providerUserId string,
 	avatarURL string,
-	accessToken string,
-	accessTokenSecret string,
-	refreshToken string,
-	expiresAt time.Time,
-	idToken string,
 ) User {
 	return User{
-		entity:            NewEntity(id, createdAt, updatedAt),
-		Email:             email,
-		Password:          password,
-		Provider:          provider,
-		Name:              name,
-		FirstName:         firstName,
-		LastName:          lastName,
-		ProviderUserId:    providerUserId,
-		AvatarURL:         avatarURL,
-		AccessToken:       accessToken,
-		AccessTokenSecret: accessTokenSecret,
-		RefreshToken:      refreshToken,
-		ExpiresAt:         expiresAt,
-		IDToken:           idToken,
+		entity:         NewEntity(id, createdAt, updatedAt),
+		Email:          email,
+		Password:       password,
+		Provider:       provider,
+		Name:           name,
+		FirstName:      firstName,
+		LastName:       lastName,
+		ProviderUserId: providerUserId,
+		AvatarURL:      avatarURL,
 	}
 }

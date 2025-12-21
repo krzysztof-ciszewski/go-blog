@@ -20,6 +20,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	amqp091 "github.com/rabbitmq/amqp091-go"
 )
 
 type Container struct {
@@ -63,8 +64,9 @@ func GetContainer() *Container {
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
 		router := buildRouter(logger)
-		amqpConfig := amqp.NewDurableQueueConfig(os.Getenv("AMQP_URL"))
+		amqpConfig := buildAMQPConfig(os.Getenv("AMQP_URL"))
 		publisher := buildPublisher(&amqpConfig, logger)
+		setupRouterMiddleware(router, publisher)
 		subscriber := buildSubscriber(&amqpConfig, logger)
 		generateCommandsTopic := buildGenerateCommandsTopicFunc()
 		generateEventsTopic := buildGenerateEventsTopicFunc()
@@ -86,6 +88,14 @@ func GetContainer() *Container {
 		}
 	}
 	return container
+}
+
+func setupRouterMiddleware(router *message.Router, publisher *amqp.Publisher) {
+	poisonQueue, err := middleware.PoisonQueue(publisher, "dlq")
+	if err != nil {
+		panic(err)
+	}
+	router.AddMiddleware(poisonQueue)
 }
 
 func buildGenerateCommandsTopicFunc() func(commandName string) string {
@@ -110,8 +120,6 @@ func buildRouter(logger watermill.LoggerAdapter) *message.Router {
 		panic(err)
 	}
 
-	router.AddMiddleware(middleware.Recoverer)
-
 	return router
 }
 
@@ -125,6 +133,10 @@ func buildCqrsMarshaller() *cqrs.JSONMarshaler {
 	return &cqrs.JSONMarshaler{
 		GenerateName: cqrs.StructName,
 	}
+}
+
+func buildAMQPConfig(amqpURL string) amqp.Config {
+	return amqp.NewDurableQueueConfig(amqpURL)
 }
 
 func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) *amqp.Publisher {

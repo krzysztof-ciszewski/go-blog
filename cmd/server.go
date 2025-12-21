@@ -26,7 +26,7 @@ func main() {
 
 	r := gin.Default()
 
-	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
+	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
 
 	store.MaxAge(int(12 * time.Hour / time.Second))
 	store.Options.Path = "/"
@@ -43,7 +43,7 @@ func main() {
 		githubPrivder := github.New(
 			os.Getenv("GITHUB_CLIENT_ID"),
 			os.Getenv("GITHUB_CLIENT_SECRET"),
-			"http://localhost:8080/auth/github/callback",
+			os.Getenv("API_URL")+"/auth/github/callback",
 			"user:email",
 		)
 
@@ -94,14 +94,10 @@ func main() {
 				gothUser.LastName,
 				gothUser.UserID,
 				gothUser.AvatarURL,
-				gothUser.AccessToken,
-				gothUser.AccessTokenSecret,
-				gothUser.RefreshToken,
-				gothUser.ExpiresAt,
-				gothUser.IDToken,
 			))
 
-			session.Values["user"] = gothUser
+			session.Values["user_id"] = gothUser.UserID
+			session.Values["user_email"] = gothUser.Email
 
 			if err = session.Save(ctx.Request, ctx.Writer); err != nil {
 				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -116,10 +112,19 @@ func main() {
 		})
 
 		auth.GET("/:provider", func(ctx *gin.Context) {
+			session, err := gothic.Store.Get(ctx.Request, os.Getenv("SESSION_NAME"))
+			if err == nil {
+				userId := session.Values["user_id"]
+				userEmail := session.Values["user_email"]
+				if userId != nil && userEmail != nil {
+					ctx.Redirect(http.StatusTemporaryRedirect, os.Getenv("CLIENT_URL"))
+					return
+				}
+			}
+
 			query := ctx.Request.URL.Query()
 			query.Add("provider", ctx.Param("provider"))
 			ctx.Request.URL.RawQuery = query.Encode()
-
 			gothic.BeginAuthHandler(ctx.Writer, ctx.Request)
 		})
 

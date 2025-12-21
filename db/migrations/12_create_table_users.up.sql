@@ -9,12 +9,7 @@ CREATE TABLE users (
     first_name VARCHAR(255),
     last_name VARCHAR(255),
     provider_user_id VARCHAR(255) NOT NULL,
-    avatar_url VARCHAR(500),
-    access_token TEXT NOT NULL,
-    access_token_secret TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    id_token TEXT NOT NULL
+    avatar_url VARCHAR(500)
 );
 
 CREATE INDEX idx_users_email ON users(email);

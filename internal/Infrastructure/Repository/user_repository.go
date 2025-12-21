@@ -26,13 +26,8 @@ func (u userRepository) Save(user entity.User) error {
 			first_name,
 			last_name,
 			provider_user_id,
-			avatar_url,
-			access_token,
-			access_token_secret,
-			refresh_token,
-			expires_at,
-			id_token)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			avatar_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		`,
 		user.Id().String(),
 		user.CreatedAt().Format(time.RFC3339),
@@ -45,11 +40,6 @@ func (u userRepository) Save(user entity.User) error {
 		sqlNullString(user.LastName),
 		user.ProviderUserId,
 		sqlNullString(user.AvatarURL),
-		user.AccessToken,
-		user.AccessTokenSecret,
-		user.RefreshToken,
-		user.ExpiresAt.Format(time.RFC3339),
-		user.IDToken,
 	)
 
 	return err
@@ -68,12 +58,7 @@ func (u userRepository) FindByID(id uuid.UUID) (entity.User, error) {
 			first_name,
 			last_name,
 			provider_user_id,
-			avatar_url,
-			access_token,
-			access_token_secret,
-			refresh_token,
-			expires_at,
-			id_token
+			avatar_url
 		FROM users WHERE id = $1
 	`, id)
 
@@ -88,11 +73,6 @@ func (u userRepository) FindByID(id uuid.UUID) (entity.User, error) {
 	var lastName sql.NullString
 	var providerUserId string
 	var avatarURL sql.NullString
-	var accessToken string
-	var accessTokenSecret string
-	var refreshToken string
-	var expiresAt time.Time
-	var idToken string
 
 	err := row.Scan(
 		&userId,
@@ -106,11 +86,6 @@ func (u userRepository) FindByID(id uuid.UUID) (entity.User, error) {
 		&lastName,
 		&providerUserId,
 		&avatarURL,
-		&accessToken,
-		&accessTokenSecret,
-		&refreshToken,
-		&expiresAt,
-		&idToken,
 	)
 
 	if err != nil {
@@ -129,11 +104,6 @@ func (u userRepository) FindByID(id uuid.UUID) (entity.User, error) {
 		nullStringValue(lastName),
 		providerUserId,
 		nullStringValue(avatarURL),
-		accessToken,
-		accessTokenSecret,
-		refreshToken,
-		expiresAt,
-		idToken,
 	), nil
 }
 
@@ -150,12 +120,7 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 			first_name,
 			last_name,
 			provider_user_id,
-			avatar_url,
-			access_token,
-			access_token_secret,
-			refresh_token,
-			expires_at,
-			id_token
+			avatar_url
 		FROM users WHERE email = $1
 	`, email)
 
@@ -170,11 +135,6 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 	var lastName sql.NullString
 	var providerUserId string
 	var avatarURL sql.NullString
-	var accessToken string
-	var accessTokenSecret string
-	var refreshToken string
-	var expiresAt time.Time
-	var idToken string
 
 	err := row.Scan(
 		&userId,
@@ -188,11 +148,6 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 		&lastName,
 		&providerUserId,
 		&avatarURL,
-		&accessToken,
-		&accessTokenSecret,
-		&refreshToken,
-		&expiresAt,
-		&idToken,
 	)
 
 	if err != nil {
@@ -211,11 +166,6 @@ func (u userRepository) FindByEmail(email string) (entity.User, error) {
 		nullStringValue(lastName),
 		providerUserId,
 		nullStringValue(avatarURL),
-		accessToken,
-		accessTokenSecret,
-		refreshToken,
-		expiresAt,
-		idToken,
 	), nil
 }
 
