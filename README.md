@@ -9,7 +9,7 @@ This project follows **Domain-Driven Design (DDD)** principles and implements th
 - **Commands**: Write operations that modify state (e.g., creating posts, deleting posts, creating users). Commands are sent asynchronously via RabbitMQ.
 - **Queries**: Read operations that retrieve data (e.g., fetching posts, filtering by author/text). Queries are handled synchronously via a Query Bus.
 - **Events**: Domain events published after state changes for further processing (e.g., notifications, search indexing)
-- **Dead Letter Queue**: Failed messages are automatically routed to a "dlq" queue using Watermill's PoisonQueue middleware
+- **Dead Letter Queue**: Failed messages are automatically routed to dead letter queues via a custom topology builder that configures RabbitMQ dead letter exchanges
 
 ### Query Bus
 
@@ -41,6 +41,7 @@ blog/
 │   │   ├── Entity/              # Domain entities (Post, User)
 │   │   └── Repository/           # Repository interfaces (PostRepository, UserRepository)
 │   ├── Infrastructure/           # Infrastructure layer
+│   │   ├── Amqp/                # AMQP topology builder for dead letter queues
 │   │   ├── DependencyInjection/  # DI container
 │   │   ├── QueryBus/            # Query Bus implementation
 │   │   └── Repository/           # Repository implementations
@@ -58,7 +59,7 @@ blog/
   - **Queries**: Synchronous read operations via Query Bus
 - **Query Bus**: Synchronous query handling for immediate API responses
 - **Event-Driven Architecture**: Uses RabbitMQ (AMQP) for asynchronous message processing
-- **Dead Letter Queue**: Automatic routing of failed messages to "dlq" queue using PoisonQueue middleware
+- **Dead Letter Queue**: Automatic routing of failed messages to dead letter queues via custom RabbitMQ topology builder
 - **Domain-Driven Design**: Clean architecture with clear separation of concerns
 - **RESTful API**: HTTP endpoints for blog operations with filtering and search
 - **OAuth Authentication**: GitHub OAuth integration for user authentication
@@ -110,6 +111,9 @@ blog/
    ```bash
    export DATABASE_URL="postgres://blog:blogpassword@localhost:5432/blog?sslmode=disable"
    export AMQP_URL="amqp://guest:guest@localhost:5672/"
+   export AMQP_DLX_EXCHANGE="my-dlx"
+   export AMQP_DLX_QUEUE_SUFFIX="dlq"
+   export AMQP_DLX_ROUTING_KEY_SUFFIX="dlq"
    ```
 
 3. **Run database migrations:**
@@ -298,7 +302,7 @@ GET /auth/logout/github
 3. **Command is published** to RabbitMQ queue `commands.{CommandName}`
 4. **Consumer service** receives the command from RabbitMQ
 5. **Command handler** processes the command and modifies the database
-6. **Failed messages** are automatically routed to the "dlq" dead letter queue via PoisonQueue middleware
+6. **Failed messages** are automatically routed to dead letter queues configured via the custom topology builder
 7. **Events can be published** for further processing (e.g., notifications, search indexing)
 
 ### Query Flow (Read Operations)
@@ -315,11 +319,23 @@ GET /auth/logout/github
 
 - **Commands**: `commands.{CommandName}` (e.g., `commands.CreatePostCommand`, `commands.CreateUserCommand`)
 - **Events**: `events.{EventName}` (e.g., `events.PostCreated`)
-- **Dead Letter Queue**: `dlq` - Failed messages that cannot be processed are automatically routed here
+- **Dead Letter Queue**: `{QueueName}.{DLQ_SUFFIX}` - Failed messages that cannot be processed are automatically routed here
 
 ### Dead Letter Queue
 
-The application uses Watermill's **PoisonQueue middleware** to automatically handle failed messages. When a message processing fails (e.g., handler returns an error), the message is automatically published to the "dlq" queue for inspection and manual handling. This prevents message loss and allows for debugging and retry mechanisms.
+The application uses a **custom topology builder** to configure RabbitMQ dead letter exchanges and queues. When a message is negatively acknowledged (nacked) or cannot be processed, RabbitMQ automatically routes it to the corresponding dead letter queue.
+
+**How it works:**
+1. A dead letter exchange (DLX) is declared for each queue topology
+2. A dead letter queue (DLQ) is created for each main queue with the naming pattern: `{QueueName}.{DLQ_SUFFIX}`
+3. The DLQ is bound to the DLX exchange with a routing key
+4. Main queues are configured with `x-dead-letter-exchange` and `x-dead-letter-routing-key` arguments
+5. When a message is nacked with `requeue=false`, RabbitMQ routes it to the DLX, which then routes it to the DLQ
+
+**Configuration:**
+- Dead letter queues are automatically created when queues are declared
+- Each queue gets its own dedicated dead letter queue
+- Messages in DLQs can be inspected, republished, or manually handled via RabbitMQ Management UI
 
 ## Database Schema
 
@@ -423,6 +439,9 @@ To create a new migration:
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://blog:blogpassword@postgres:5432/blog?sslmode=disable` |
 | `AMQP_URL` | RabbitMQ connection string | `amqp://guest:guest@rabbitmq:5672/` (Docker) or `amqp://guest:guest@localhost:5672/` (local) |
+| `AMQP_DLX_EXCHANGE` | Dead letter exchange name | `my-dlx` (default if not set) |
+| `AMQP_DLX_QUEUE_SUFFIX` | Suffix for dead letter queue names | `dlq` (default if not set) |
+| `AMQP_DLX_ROUTING_KEY_SUFFIX` | Suffix for dead letter routing keys | `dlq` (default if not set) |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID | Required for OAuth authentication |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | Required for OAuth authentication |
 | `SESSION_KEY` | Session encryption key | Required for session management |
@@ -443,6 +462,7 @@ To create a new migration:
 
 - **CQRS**: Command Query Responsibility Segregation implementation (Watermill)
 - **Query Bus**: Custom synchronous query handling implementation
+- **Topology Builder**: Custom RabbitMQ topology builder for dead letter queue configuration
 - **UUID**: Unique identifier generation (Google UUID library)
 - **Goth**: OAuth authentication library for multiple providers
 - **Gorilla Sessions**: Session management for authenticated users
@@ -485,9 +505,17 @@ If the consumer can't connect to RabbitMQ:
 To inspect failed messages:
 
 1. Access RabbitMQ Management UI at `http://localhost:15672`
-2. Navigate to the "Queues" tab
-3. Look for the "dlq" queue to see failed messages
-4. Messages in the DLQ can be manually inspected, republished, or deleted
+2. Navigate to the "Exchanges" tab to see the dead letter exchange (default: `my-dlx`)
+3. Navigate to the "Queues" tab
+4. Look for queues with the pattern `{QueueName}.{DLQ_SUFFIX}` (e.g., `commands.CreatePostCommand.dlq`)
+5. Click on a DLQ to see failed messages
+6. Messages in the DLQ can be:
+   - Inspected (view message payload and headers)
+   - Republished to the original queue
+   - Deleted
+   - Manually routed to another queue
+
+**Note:** Dead letter queues are automatically created when their corresponding main queues are declared. Each queue has its own dedicated dead letter queue.
 
 ### Database Connection Issues
 
