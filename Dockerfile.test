@@ -1,0 +1,17 @@
+FROM golang:1.25-alpine
+
+WORKDIR /app
+
+# Install C compiler and SQLite dev libraries for CGO
+RUN apk add --no-cache gcc musl-dev sqlite-dev
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Run tests
+CMD ["go", "test", "./..."]
+

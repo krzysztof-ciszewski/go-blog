@@ -41,8 +41,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - .env
+      - .env.local
     volumes:
       - ./db/migrations:/app/db/migrations
     command: ["./migrate"]
@@ -59,9 +60,9 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      AMQP_URL: ${AMQP_URL:-amqp://guest:guest@rabbitmq:5672/}
+    env_file:
+      - .env
+      - .env.local
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -78,10 +79,28 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      AMQP_URL: ${AMQP_URL:-amqp://guest:guest@rabbitmq:5672/}
+    env_file:
+      - .env
+      - .env.local
     restart: unless-stopped
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: blog-test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+      - .env.test
+    profiles:
+      - test
 
 volumes:
   postgres_data:

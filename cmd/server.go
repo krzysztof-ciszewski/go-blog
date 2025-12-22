@@ -1,19 +1,14 @@
 package main
 
 import (
-	"context"
-	post_command "main/internal/Application/Command/Post"
-	user_command "main/internal/Application/Command/User"
-	query "main/internal/Application/Query"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	auth "main/internal/UserInterface/Api/Handler/Auth"
+	post "main/internal/UserInterface/Api/Handler/Post"
 	middleware "main/internal/UserInterface/Api/Middleware"
-	request "main/internal/UserInterface/Api/Request"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
@@ -21,9 +16,6 @@ import (
 )
 
 func main() {
-	container := dependency_injection.GetContainer()
-	commandBus := container.CommandBus
-
 	r := gin.Default()
 
 	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
@@ -36,8 +28,8 @@ func main() {
 
 	gothic.Store = store
 
-	auth := r.Group("/auth")
-	api := r.Group("/api/v1", middleware.RequireAuth())
+	authGroup := r.Group("/auth")
+	apiGroup := r.Group("/api/v1", middleware.RequireAuth())
 
 	{
 		githubPrivder := github.New(
@@ -49,211 +41,17 @@ func main() {
 
 		goth.UseProviders(githubPrivder)
 
-		auth.GET("/:provider/callback", func(ctx *gin.Context) {
-			q := ctx.Request.URL.Query()
-			q.Add("provider", ctx.Param("provider"))
-			ctx.Request.URL.RawQuery = q.Encode()
-
-			gothUser, err := gothic.CompleteUserAuth(ctx.Writer, ctx.Request)
-			if err != nil {
-				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"message": "Error authenticating user",
-					"error":   err.Error(),
-				})
-				return
-			}
-
-			session, err := gothic.Store.New(ctx.Request, os.Getenv("SESSION_NAME"))
-			if err != nil {
-				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"message": "Error stroing user session",
-					"error":   err.Error(),
-				})
-				return
-			}
-
-			session.Values["provider_user_id"] = gothUser.UserID
-			session.Values["email"] = gothUser.Email
-
-			if err = session.Save(ctx.Request, ctx.Writer); err != nil {
-				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"message": "Error saving user session",
-					"error":   err.Error(),
-				})
-				return
-			}
-
-			user, err := container.QueryBus.Execute(
-				context.Background(),
-				query.NewFindUserByQuery(
-					gothUser.UserID,
-					gothUser.Email,
-				),
-			)
-
-			if user != nil && err == nil {
-				ctx.Redirect(http.StatusTemporaryRedirect, os.Getenv("CLIENT_URL"))
-				return
-			}
-
-			id, err := uuid.NewRandom()
-			if err != nil {
-				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"message": "Error generating user ID",
-					"error":   err.Error(),
-				})
-				return
-			}
-
-			container.CommandBus.Send(context.Background(), user_command.NewCreateUserCommand(
-				id,
-				gothUser.Email,
-				"",
-				gothUser.Provider,
-				gothUser.Name,
-				gothUser.FirstName,
-				gothUser.LastName,
-				gothUser.UserID,
-				gothUser.AvatarURL,
-			))
-
-			ctx.Redirect(http.StatusTemporaryRedirect, os.Getenv("CLIENT_URL"))
-		})
-
-		auth.GET("/:provider", func(ctx *gin.Context) {
-			q := ctx.Request.URL.Query()
-			q.Add("provider", ctx.Param("provider"))
-			ctx.Request.URL.RawQuery = q.Encode()
-
-			session, err := gothic.Store.Get(ctx.Request, os.Getenv("SESSION_NAME"))
-			if err != nil {
-				gothic.BeginAuthHandler(ctx.Writer, ctx.Request)
-				return
-			}
-
-			providerUserId := session.Values["provider_user_id"]
-			email := session.Values["email"]
-
-			if providerUserId == nil || email == nil {
-				gothic.BeginAuthHandler(ctx.Writer, ctx.Request)
-				return
-			}
-
-			user, err := container.QueryBus.Execute(
-				context.Background(),
-				query.NewFindUserByQuery(
-					providerUserId.(string),
-					email.(string),
-				),
-			)
-
-			if user != nil && err == nil {
-				ctx.Redirect(http.StatusTemporaryRedirect, os.Getenv("CLIENT_URL"))
-				return
-			}
-
-			gothic.BeginAuthHandler(ctx.Writer, ctx.Request)
-		})
-
-		auth.GET("/logout/:provider", func(ctx *gin.Context) {
-			gothic.Logout(ctx.Writer, ctx.Request)
-			ctx.Writer.Header().Set("Location", "/")
-			ctx.Writer.WriteHeader(http.StatusTemporaryRedirect)
-		})
+		authGroup.GET("/:provider/callback", auth.OauthCallback)
+		authGroup.GET("/:provider", auth.OauthInitial)
+		authGroup.GET("/logout/:provider", auth.OauthLogout)
 	}
 
 	{
-		api.GET("/posts", func(ctx *gin.Context) {
-			text := ctx.Query("text")
-			author := ctx.Query("author")
-
-			var result any
-			var err error
-
-			if text != "" {
-				q := query.NewFindAllByTextQuery(text)
-				result, err = container.QueryBus.Execute(context.Background(), q)
-			} else if author != "" {
-				q := query.NewFindAllByAuthorQuery(author)
-				result, err = container.QueryBus.Execute(context.Background(), q)
-			} else {
-				q := query.NewFindAllQuery()
-				result, err = container.QueryBus.Execute(context.Background(), q)
-			}
-
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			ctx.JSON(http.StatusOK, result)
-		})
-
-		api.GET("/posts/:id", func(ctx *gin.Context) {
-			id := ctx.Param("id")
-
-			parsedUUID, err := uuid.Parse(id)
-			if err != nil {
-				ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID"})
-				return
-			}
-
-			q := query.NewGetPostQuery(parsedUUID)
-			post, err := container.QueryBus.Execute(context.Background(), q)
-
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-
-				return
-			}
-
-			ctx.JSON(http.StatusOK, post)
-		})
-
-		api.GET("/posts/slug/:slug", func(ctx *gin.Context) {
-			slug := ctx.Param("slug")
-
-			q := query.NewFindBySlugQuery(slug)
-			post, err := container.QueryBus.Execute(context.Background(), q)
-
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			ctx.JSON(http.StatusOK, post)
-		})
-
-		api.POST("/posts", func(ctx *gin.Context) {
-			var request request.CreatePostRequest
-
-			if err := ctx.ShouldBindJSON(&request); err != nil {
-				ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-
-				return
-			}
-
-			command := post_command.NewCreatePostCommand(
-				uuid.MustParse(request.Id),
-				request.Slug,
-				request.Title,
-				request.Content,
-				request.Author,
-			)
-
-			commandBus.Send(context.Background(), command)
-
-			ctx.JSON(http.StatusAccepted, gin.H{"message": "Post created"})
-		})
-
-		api.DELETE("/posts/:id", func(ctx *gin.Context) {
-			id := ctx.Param("id")
-
-			command := post_command.NewDeletePostCommand(uuid.MustParse(id))
-			commandBus.Send(context.Background(), command)
-
-			ctx.JSON(http.StatusAccepted, gin.H{"message": "Post deleted"})
-		})
+		apiGroup.GET("/posts", post.ListPosts)
+		apiGroup.GET("/posts/:id", post.GetPostById)
+		apiGroup.GET("/posts/slug/:slug", post.GetPostBySlug)
+		apiGroup.POST("/posts", post.CreatePost)
+		apiGroup.DELETE("/posts/:id", post.DeletePost)
 	}
 	r.Run()
 }

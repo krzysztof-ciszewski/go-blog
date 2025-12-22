@@ -18,7 +18,6 @@ import (
 	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -37,15 +36,6 @@ var container *Container
 
 // TODO: Maybe replace with uber/dig
 func GetContainer() *Container {
-	err := godotenv.Load(".env.local")
-	if err != nil {
-		panic(err)
-	}
-	err = godotenv.Load()
-	if err != nil {
-		panic(err)
-	}
-
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
@@ -63,7 +53,7 @@ func GetContainer() *Container {
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
 		router := buildRouter(logger)
-		amqpConfig := buildAMQPConfig(os.Getenv("AMQP_URL"))
+		amqpConfig := buildAMQPConfig(os.Getenv("AMQP_URI"))
 		publisher := buildPublisher(&amqpConfig, logger)
 		setupRouterMiddleware(router, publisher)
 		subscriber := buildSubscriber(&amqpConfig, logger)
