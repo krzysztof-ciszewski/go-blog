@@ -74,6 +74,7 @@ blog/
 - PostgreSQL 18 (if running manually)
 - RabbitMQ 3 (if running manually)
 - GitHub OAuth App (for authentication)
+- SQLite (for testing - used by Watermill for command/event storage)
 
 ## Getting Started
 
@@ -110,6 +111,8 @@ blog/
    - Database migration service (runs once)
    - API server (port 8080)
    - RabbitMQ consumer service
+
+   **Note:** A test service is also available but runs only when explicitly started with the `test` profile.
 
 3. **Check service status:**
    ```bash
@@ -250,9 +253,51 @@ The application uses a **custom topology builder** to configure RabbitMQ dead le
 
 ### Running Tests
 
+#### Using Docker Compose (Recommended)
+
+Run tests in an isolated Docker container with all dependencies:
+
 ```bash
-go test ./...
+docker-compose --profile test up test
 ```
+
+This will:
+- Start PostgreSQL and RabbitMQ services
+- Run database migrations
+- Execute all tests in `./internal/...`
+- Use SQLite for Watermill command/event storage (test isolation)
+
+#### Running Tests Locally
+
+1. **Start dependencies:**
+   ```bash
+   docker-compose up -d postgres rabbitmq
+   ```
+
+2. **Run database migrations:**
+   ```bash
+   go run cmd/migrate.go
+   ```
+
+3. **Run tests:**
+   ```bash
+   go test ./...
+   ```
+
+   Or run tests for a specific package:
+   ```bash
+   go test ./internal/UserInterface/Api/Handler/Post/...
+   ```
+
+#### Test Infrastructure
+
+The project uses:
+- **testify/suite**: For organized test suites
+- **testify/assert**: For assertions
+- **SQLite**: For Watermill command/event storage in tests (via `watermill-sqlite`)
+- **Test DI Container**: Custom dependency injection container for tests (see `internal/Infrastructure/DependencyInjection/Test/`)
+
+For detailed testing guidelines, see [`docs/HANDLER_TEST_GUIDELINES.md`](docs/HANDLER_TEST_GUIDELINES.md).
 
 ### Building
 
@@ -317,6 +362,12 @@ To create a new migration:
 - **Gorilla Sessions**: Session management for authenticated users
 - **Godotenv**: Environment variable management
 
+### Testing Libraries
+
+- **testify/suite**: Test suite organization
+- **testify/assert**: Test assertions
+- **watermill-sqlite**: SQLite integration for Watermill (used in tests for command/event storage)
+
 ## Docker Services
 
 The `docker-compose.yaml` file defines the following services:
@@ -326,6 +377,7 @@ The `docker-compose.yaml` file defines the following services:
 - **migrate**: Database migration service (runs once)
 - **server**: HTTP API server
 - **consume**: RabbitMQ consumer service
+- **test**: Test runner service (runs with `--profile test` flag)
 
 ## Stopping Services
 
@@ -337,6 +389,12 @@ To remove volumes (database data):
 
 ```bash
 docker-compose down -v
+```
+
+To stop services including test profile:
+
+```bash
+docker-compose --profile test down
 ```
 
 ## Troubleshooting

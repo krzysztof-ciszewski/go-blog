@@ -2,8 +2,8 @@ package post
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	post_command "main/internal/Application/Command/Post"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	request "main/internal/UserInterface/Api/Request"
 	"net/http"
 
@@ -11,8 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func CreatePost(ctx *gin.Context) {
-	container := dependency_injection.GetContainer()
+func CreatePost(ctx *gin.Context, commandBus *cqrs.CommandBus) {
 
 	var req request.CreatePostRequest
 
@@ -29,7 +28,7 @@ func CreatePost(ctx *gin.Context) {
 		req.Author,
 	)
 
-	container.CommandBus.Send(context.Background(), command)
+	commandBus.Send(context.Background(), command)
 
 	ctx.JSON(http.StatusAccepted, gin.H{"message": "Post created"})
 }

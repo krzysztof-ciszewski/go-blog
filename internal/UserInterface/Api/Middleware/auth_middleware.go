@@ -13,7 +13,6 @@ func RequireAuth() gin.HandlerFunc {
 		_, err := gothic.Store.Get(ctx.Request, os.Getenv("SESSION_NAME"))
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"success": false,
 				"message": "Unauthorized User",
 				"error":   err.Error(),
 			})

@@ -4,18 +4,17 @@ import (
 	"context"
 	command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 	"os"
 
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/markbates/goth/gothic"
 )
 
-func OauthCallback(ctx *gin.Context) {
-	container := dependency_injection.GetContainer()
-
+func OauthCallback(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bus.QueryBus) {
 	q := ctx.Request.URL.Query()
 	q.Add("provider", ctx.Param("provider"))
 	ctx.Request.URL.RawQuery = q.Encode()
@@ -49,7 +48,7 @@ func OauthCallback(ctx *gin.Context) {
 		return
 	}
 
-	user, err := container.QueryBus.Execute(
+	user, err := queryBus.Execute(
 		context.Background(),
 		query.NewFindUserByQuery(
 			gothUser.UserID,
@@ -71,7 +70,7 @@ func OauthCallback(ctx *gin.Context) {
 		return
 	}
 
-	container.CommandBus.Send(context.Background(), command.NewCreateUserCommand(
+	commandBus.Send(context.Background(), command.NewCreateUserCommand(
 		id,
 		gothUser.Email,
 		"",

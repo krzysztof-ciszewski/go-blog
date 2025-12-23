@@ -97,7 +97,6 @@ services:
       migrate:
         condition: service_completed_successfully
     env_file:
-      - .env
       - .env.test
     profiles:
       - test

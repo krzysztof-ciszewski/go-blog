@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	query "main/internal/Application/Query"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 	"os"
 
@@ -11,9 +11,7 @@ import (
 	"github.com/markbates/goth/gothic"
 )
 
-func OauthInitial(ctx *gin.Context) {
-	container := dependency_injection.GetContainer()
-
+func OauthInitial(ctx *gin.Context, queryBus query_bus.QueryBus) {
 	q := ctx.Request.URL.Query()
 	q.Add("provider", ctx.Param("provider"))
 	ctx.Request.URL.RawQuery = q.Encode()
@@ -32,7 +30,7 @@ func OauthInitial(ctx *gin.Context) {
 		return
 	}
 
-	user, err := container.QueryBus.Execute(
+	user, err := queryBus.Execute(
 		context.Background(),
 		query.NewFindUserByQuery(
 			providerUserId.(string),

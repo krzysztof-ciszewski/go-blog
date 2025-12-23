@@ -3,14 +3,13 @@ package post
 import (
 	"context"
 	query "main/internal/Application/Query"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
-func ListPosts(ctx *gin.Context) {
-	container := dependency_injection.GetContainer()
+func ListPosts(ctx *gin.Context, queryBus query_bus.QueryBus) {
 
 	text := ctx.Query("text")
 	author := ctx.Query("author")
@@ -20,13 +19,13 @@ func ListPosts(ctx *gin.Context) {
 
 	if text != "" {
 		q := query.NewFindAllByTextQuery(text)
-		result, err = container.QueryBus.Execute(context.Background(), q)
+		result, err = queryBus.Execute(context.Background(), q)
 	} else if author != "" {
 		q := query.NewFindAllByAuthorQuery(author)
-		result, err = container.QueryBus.Execute(context.Background(), q)
+		result, err = queryBus.Execute(context.Background(), q)
 	} else {
 		q := query.NewFindAllQuery()
-		result, err = container.QueryBus.Execute(context.Background(), q)
+		result, err = queryBus.Execute(context.Background(), q)
 	}
 
 	if err != nil {

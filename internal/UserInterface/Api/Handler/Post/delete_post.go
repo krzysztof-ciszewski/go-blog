@@ -2,21 +2,19 @@ package post
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	post_command "main/internal/Application/Command/Post"
-	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
-func DeletePost(ctx *gin.Context) {
-	container := dependency_injection.GetContainer()
-
+func DeletePost(ctx *gin.Context, commandBus *cqrs.CommandBus) {
 	id := ctx.Param("id")
 
 	command := post_command.NewDeletePostCommand(uuid.MustParse(id))
-	container.CommandBus.Send(context.Background(), command)
+	commandBus.Send(context.Background(), command)
 
 	ctx.JSON(http.StatusAccepted, gin.H{"message": "Post deleted"})
 }

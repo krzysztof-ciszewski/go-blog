@@ -1,4 +1,4 @@
-package dependency_injection
+package test
 
 import (
 	"database/sql"
@@ -7,7 +7,7 @@ import (
 	user_command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query"
 	domain_repository "main/internal/Domain/Repository"
-	infra_amqp "main/internal/Infrastructure/Amqp"
+	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	infra_repository "main/internal/Infrastructure/Repository"
 	"os"
@@ -15,27 +15,17 @@ import (
 	"time"
 
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
+	"github.com/ThreeDotsLabs/watermill-sqlite/wmsqlitemodernc"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	_ "github.com/lib/pq"
 )
 
-type Container struct {
-	DB               *sql.DB
-	QueryBus         query_bus.QueryBus
-	CommandBus       *cqrs.CommandBus
-	EventBus         *cqrs.EventBus
-	Router           *message.Router
-	CommandProcessor *cqrs.CommandProcessor
-	EventProcessor   *cqrs.EventProcessor
-}
-
 var lock = sync.Mutex{}
-var container *Container
+var container *dependency_injection.Container
 
 // TODO: Maybe replace with uber/dig
-func GetContainer() *Container {
+func GetTestContainer() *dependency_injection.Container {
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
@@ -43,6 +33,8 @@ func GetContainer() *Container {
 		if err != nil {
 			panic(err)
 		}
+
+		pubSubDb := GetPubSubDb()
 
 		postRepository := infra_repository.NewPostRepository(db)
 		userRepository := infra_repository.NewUserRepository(db)
@@ -53,9 +45,8 @@ func GetContainer() *Container {
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
 		router := buildRouter(logger)
-		amqpConfig := buildAMQPConfig(os.Getenv("AMQP_URI"))
-		publisher := buildPublisher(&amqpConfig, logger)
-		subscriber := buildSubscriber(&amqpConfig, logger)
+		publisher := buildPublisher(pubSubDb, logger)
+		subscriber := buildSubscriber(pubSubDb, logger)
 		generateCommandsTopic := buildGenerateCommandsTopicFunc()
 		generateEventsTopic := buildGenerateEventsTopicFunc()
 		commandBus := buildCommandBus(logger, cqrsMarshaller, publisher, generateCommandsTopic)
@@ -65,7 +56,7 @@ func GetContainer() *Container {
 		eventProcessor := buildEventProcessor(router, subscriber, cqrsMarshaller, logger, generateEventsTopic)
 		registerEventHandlers(eventProcessor, eventBus)
 
-		container = &Container{
+		container = &dependency_injection.Container{
 			DB:               db,
 			QueryBus:         queryBus,
 			CommandBus:       commandBus,
@@ -76,6 +67,35 @@ func GetContainer() *Container {
 		}
 	}
 	return container
+}
+
+var pubSubDb *sql.DB
+var pubSubDbLock = sync.Mutex{}
+
+func GetPubSubDb() *sql.DB {
+	if pubSubDb == nil {
+		pubSubDbLock.Lock()
+		defer pubSubDbLock.Unlock()
+		pubSubDb = createPubSubDb()
+	}
+	return pubSubDb
+}
+
+func GetCommandCount(topic string) int {
+	pubSubDb := GetPubSubDb()
+	rows, err := pubSubDb.Query("SELECT COUNT(*) FROM `watermill_commands." + topic + "`")
+	if err != nil {
+		return 0 // err means table does not exist which means no commands have been sent
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		err = rows.Scan(&count)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return count
 }
 
 func buildGenerateCommandsTopicFunc() func(commandName string) string {
@@ -115,16 +135,14 @@ func buildCqrsMarshaller() *cqrs.JSONMarshaler {
 	}
 }
 
-func buildAMQPConfig(amqpURL string) amqp.Config {
-	config := amqp.NewDurableQueueConfig(amqpURL)
-	config.TopologyBuilder = &infra_amqp.MyTopologyBuilder{}
-	config.Consume.NoRequeueOnNack = true
-	return config
-}
-
-func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) message.Publisher {
-	publisher, err := amqp.NewPublisher(*amqpConfig, logger)
-
+func buildPublisher(pubSubDb *sql.DB, logger watermill.LoggerAdapter) message.Publisher {
+	publisher, err := wmsqlitemodernc.NewPublisher(
+		pubSubDb,
+		wmsqlitemodernc.PublisherOptions{
+			InitializeSchema: true,
+			Logger:           logger,
+		},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -132,8 +150,14 @@ func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) mes
 	return publisher
 }
 
-func buildSubscriber(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) message.Subscriber {
-	subscriber, err := amqp.NewSubscriber(*amqpConfig, logger)
+func buildSubscriber(pubSubDb *sql.DB, logger watermill.LoggerAdapter) message.Subscriber {
+	subscriber, err := wmsqlitemodernc.NewSubscriber(
+		pubSubDb,
+		wmsqlitemodernc.SubscriberOptions{
+			InitializeSchema: true,
+			Logger:           logger,
+		},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -307,4 +331,20 @@ func registerCommandHandlers(
 
 func registerEventHandlers(eventProcessor *cqrs.EventProcessor, eventBus *cqrs.EventBus) {
 	eventProcessor.AddHandlers()
+}
+
+func createPubSubDb() *sql.DB {
+	connectionDSN := ":memory:"
+	db, err := sql.Open("sqlite", connectionDSN)
+	if err != nil {
+		panic(err)
+	}
+	db.SetMaxOpenConns(1)
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	return db
 }
