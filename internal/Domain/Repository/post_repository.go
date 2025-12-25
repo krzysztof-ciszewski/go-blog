@@ -9,9 +9,6 @@ import (
 type PostRepository interface {
 	Save(post entity.Post) error
 	FindByID(id uuid.UUID) (entity.Post, error)
-	FindBySlug(slug string) (entity.Post, error)
-	FindAll() ([]entity.Post, error)
-	FindAllByAuthor(author string) ([]entity.Post, error)
-	FindAllByText(text string) ([]entity.Post, error)
+	FindAllBy(page int, pageSize int, slug string, text string, author string) (PaginatedResult[entity.Post], error)
 	Delete(id uuid.UUID) error
 }

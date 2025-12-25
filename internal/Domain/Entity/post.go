@@ -7,27 +7,13 @@ import (
 )
 
 type Post struct {
-	entity
-	slug    string
-	title   string
-	content string
-	author  string
-}
-
-func (p Post) Slug() string {
-	return p.slug
-}
-
-func (p Post) Title() string {
-	return p.title
-}
-
-func (p Post) Content() string {
-	return p.content
-}
-
-func (p Post) Author() string {
-	return p.author
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey;column:id;default:gen_random_uuid()"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+	Slug      string    `gorm:"column:slug"`
+	Title     string    `gorm:"column:title"`
+	Content   string    `gorm:"column:content"`
+	Author    string    `gorm:"column:author"`
 }
 
 func NewPost(
@@ -39,5 +25,5 @@ func NewPost(
 	content string,
 	author string,
 ) Post {
-	return Post{entity: NewEntity(id, createdAt, updatedAt), slug: slug, title: title, content: content, author: author}
+	return Post{ID: id, CreatedAt: createdAt, UpdatedAt: updatedAt, Slug: slug, Title: title, Content: content, Author: author}
 }

@@ -1,8 +1,6 @@
 package view
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -19,8 +17,6 @@ type UserView struct {
 
 func NewUserView(
 	id uuid.UUID,
-	createdAt time.Time,
-	updatedAt time.Time,
 	email string,
 	provider string,
 	name string,
@@ -30,7 +26,7 @@ func NewUserView(
 	avatarURL string,
 ) UserView {
 	return UserView{
-		entityView:     NewEntityView(id, createdAt, updatedAt),
+		entityView:     NewEntityView(id),
 		Email:          email,
 		Provider:       provider,
 		Name:           name,

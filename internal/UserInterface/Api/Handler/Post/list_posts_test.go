@@ -5,6 +5,7 @@ import (
 	test "main/internal/Infrastructure/DependencyInjection/Test"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	query_bus "main/internal/Infrastructure/QueryBus"
@@ -59,7 +60,7 @@ func (s *ListPostsTestSuite) SetupTest() {
 func (s *ListPostsTestSuite) TestListPosts() {
 	s.Ctx.Request = httptest.NewRequest(
 		"GET",
-		"/api/v1/posts",
+		"/api/v1/posts?page=1&pageSize=10",
 		nil,
 	)
 	s.Ctx.Request.Header.Set("Content-Type", "application/json")
@@ -78,7 +79,7 @@ func (s *ListPostsTestSuite) TestListPosts() {
 func (s *ListPostsTestSuite) TestListPostsByText() {
 	s.Ctx.Request = httptest.NewRequest(
 		"GET",
-		"/api/v1/posts?text=first",
+		"/api/v1/posts?page=1&pageSize=10&text=first",
 		nil,
 	)
 	s.Ctx.Request.Header.Set("Content-Type", "application/json")
@@ -95,7 +96,7 @@ func (s *ListPostsTestSuite) TestListPostsByText() {
 func (s *ListPostsTestSuite) TestListPostsByAuthor() {
 	s.Ctx.Request = httptest.NewRequest(
 		"GET",
-		"/api/v1/posts?author=author1",
+		"/api/v1/posts?page=1&pageSize=10&author=author1",
 		nil,
 	)
 	s.Ctx.Request.Header.Set("Content-Type", "application/json")
@@ -112,7 +113,7 @@ func (s *ListPostsTestSuite) TestListPostsByAuthor() {
 func (s *ListPostsTestSuite) TestListPostsByTextEmptyResult() {
 	s.Ctx.Request = httptest.NewRequest(
 		"GET",
-		"/api/v1/posts?text=nonexistent",
+		"/api/v1/posts?page=1&pageSize=10&text=nonexistent",
 		nil,
 	)
 	s.Ctx.Request.Header.Set("Content-Type", "application/json")
@@ -120,13 +121,13 @@ func (s *ListPostsTestSuite) TestListPostsByTextEmptyResult() {
 	ListPosts(s.Ctx, s.QueryBus)
 
 	assert.Equal(s.T(), http.StatusOK, s.W.Code)
-	assert.Equal(s.T(), `[]`, s.W.Body.String())
+	assert.Equal(s.T(), `{"items":[],"total":0,"page":1,"page_size":10}`, s.W.Body.String())
 }
 
 func (s *ListPostsTestSuite) TestListPostsByAuthorEmptyResult() {
 	s.Ctx.Request = httptest.NewRequest(
 		"GET",
-		"/api/v1/posts?author=nonexistent",
+		"/api/v1/posts?page=1&pageSize=10&author=nonexistent",
 		nil,
 	)
 	s.Ctx.Request.Header.Set("Content-Type", "application/json")
@@ -134,23 +135,352 @@ func (s *ListPostsTestSuite) TestListPostsByAuthorEmptyResult() {
 	ListPosts(s.Ctx, s.QueryBus)
 
 	assert.Equal(s.T(), http.StatusOK, s.W.Code)
-	assert.Equal(s.T(), `[]`, s.W.Body.String())
+	assert.Equal(s.T(), `{"items":[],"total":0,"page":1,"page_size":10}`, s.W.Body.String())
 }
 
-func (s *ListPostsTestSuite) TestListPostsTextTakesPrecedenceOverAuthor() {
-	s.Ctx.Request = httptest.NewRequest(
-		"GET",
-		"/api/v1/posts?text=first&author=author2",
-		nil,
-	)
-	s.Ctx.Request.Header.Set("Content-Type", "application/json")
+func (s *ListPostsTestSuite) TestListPostsPagination() {
+	tests := []struct {
+		name             string
+		page             int
+		pageSize         int
+		expectedTotal    int64
+		expectedCount    int
+		expectedPage     int
+		expectedSlugs    []string
+		notExpectedSlugs []string
+	}{
+		{
+			name:             "First page with page size 1",
+			page:             1,
+			pageSize:         1,
+			expectedTotal:    3,
+			expectedCount:    1,
+			expectedPage:     1,
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+		},
+		{
+			name:             "Second page with page size 1",
+			page:             2,
+			pageSize:         1,
+			expectedTotal:    3,
+			expectedCount:    1,
+			expectedPage:     2,
+			expectedSlugs:    []string{"slug2"},
+			notExpectedSlugs: []string{"slug1", "slug3"},
+		},
+		{
+			name:             "Third page with page size 1",
+			page:             3,
+			pageSize:         1,
+			expectedTotal:    3,
+			expectedCount:    1,
+			expectedPage:     3,
+			expectedSlugs:    []string{"slug3"},
+			notExpectedSlugs: []string{"slug1", "slug2"},
+		},
+		{
+			name:             "First page with page size 2",
+			page:             1,
+			pageSize:         2,
+			expectedTotal:    3,
+			expectedCount:    2,
+			expectedPage:     1,
+			expectedSlugs:    []string{"slug1", "slug2"},
+			notExpectedSlugs: []string{"slug3"},
+		},
+		{
+			name:             "Second page with page size 2",
+			page:             2,
+			pageSize:         2,
+			expectedTotal:    3,
+			expectedCount:    1,
+			expectedPage:     2,
+			expectedSlugs:    []string{"slug3"},
+			notExpectedSlugs: []string{"slug1", "slug2"},
+		},
+		{
+			name:             "Page beyond available data",
+			page:             10,
+			pageSize:         10,
+			expectedTotal:    3,
+			expectedCount:    0,
+			expectedPage:     10,
+			expectedSlugs:    []string{},
+			notExpectedSlugs: []string{"slug1", "slug2", "slug3"},
+		},
+		{
+			name:             "Large page size covers all",
+			page:             1,
+			pageSize:         100,
+			expectedTotal:    3,
+			expectedCount:    3,
+			expectedPage:     1,
+			expectedSlugs:    []string{"slug1", "slug2", "slug3"},
+			notExpectedSlugs: []string{},
+		},
+	}
 
-	ListPosts(s.Ctx, s.QueryBus)
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.W = httptest.NewRecorder()
+			s.Ctx = gin.CreateTestContextOnly(s.W, gin.Default())
+			s.Ctx.Request = httptest.NewRequest(
+				"GET",
+				"/api/v1/posts?page="+strconv.Itoa(tt.page)+"&pageSize="+strconv.Itoa(tt.pageSize),
+				nil,
+			)
+			s.Ctx.Request.Header.Set("Content-Type", "application/json")
 
-	assert.Equal(s.T(), http.StatusOK, s.W.Code)
-	// When text is provided, it should take precedence over author
-	assert.Contains(s.T(), s.W.Body.String(), `"slug":"slug1"`)
-	assert.Contains(s.T(), s.W.Body.String(), `"title":"First Post"`)
+			ListPosts(s.Ctx, s.QueryBus)
+
+			assert.Equal(s.T(), http.StatusOK, s.W.Code)
+			assert.Contains(s.T(), s.W.Body.String(), `"total":`+strconv.FormatInt(tt.expectedTotal, 10))
+			assert.Contains(s.T(), s.W.Body.String(), `"page":`+strconv.Itoa(tt.expectedPage))
+			assert.Contains(s.T(), s.W.Body.String(), `"page_size":`+strconv.Itoa(tt.pageSize))
+
+			for _, slug := range tt.expectedSlugs {
+				assert.Contains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+
+			for _, slug := range tt.notExpectedSlugs {
+				assert.NotContains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+		})
+	}
+}
+
+func (s *ListPostsTestSuite) TestListPostsMultiFieldFiltering() {
+	tests := []struct {
+		name             string
+		queryParams      map[string]string
+		expectedSlugs    []string
+		notExpectedSlugs []string
+		expectedTotal    int64
+	}{
+		{
+			name: "Filter by text and author",
+			queryParams: map[string]string{
+				"text":   "first",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+			expectedTotal:    1,
+		},
+		{
+			name: "Filter by text and author - no match",
+			queryParams: map[string]string{
+				"text":   "second",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{},
+			notExpectedSlugs: []string{"slug1", "slug2", "slug3"},
+			expectedTotal:    0,
+		},
+		{
+			name: "Filter by slug and author",
+			queryParams: map[string]string{
+				"slug":   "slug1",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+			expectedTotal:    1,
+		},
+		{
+			name: "Filter by slug and author - no match",
+			queryParams: map[string]string{
+				"slug":   "slug2",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{},
+			notExpectedSlugs: []string{"slug1", "slug2", "slug3"},
+			expectedTotal:    0,
+		},
+		{
+			name: "Filter by text and slug",
+			queryParams: map[string]string{
+				"text": "first",
+				"slug": "slug1",
+			},
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+			expectedTotal:    1,
+		},
+		{
+			name: "Filter by text, slug and author",
+			queryParams: map[string]string{
+				"text":   "first",
+				"slug":   "slug1",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+			expectedTotal:    1,
+		},
+		{
+			name: "Filter by text, slug and author - no match",
+			queryParams: map[string]string{
+				"text":   "second",
+				"slug":   "slug1",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{},
+			notExpectedSlugs: []string{"slug1", "slug2", "slug3"},
+			expectedTotal:    0,
+		},
+		{
+			name: "Filter by text matching multiple posts with author filter",
+			queryParams: map[string]string{
+				"text":   "post",
+				"author": "author1",
+			},
+			expectedSlugs:    []string{"slug1", "slug3"},
+			notExpectedSlugs: []string{"slug2"},
+			expectedTotal:    2,
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.W = httptest.NewRecorder()
+			s.Ctx = gin.CreateTestContextOnly(s.W, gin.Default())
+
+			queryString := "page=1&pageSize=10"
+			for key, value := range tt.queryParams {
+				queryString += "&" + key + "=" + value
+			}
+
+			s.Ctx.Request = httptest.NewRequest(
+				"GET",
+				"/api/v1/posts?"+queryString,
+				nil,
+			)
+			s.Ctx.Request.Header.Set("Content-Type", "application/json")
+
+			ListPosts(s.Ctx, s.QueryBus)
+
+			assert.Equal(s.T(), http.StatusOK, s.W.Code)
+			assert.Contains(s.T(), s.W.Body.String(), `"total":`+strconv.FormatInt(tt.expectedTotal, 10))
+
+			for _, slug := range tt.expectedSlugs {
+				assert.Contains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+
+			for _, slug := range tt.notExpectedSlugs {
+				assert.NotContains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+		})
+	}
+}
+
+func (s *ListPostsTestSuite) TestListPostsPaginationWithFilters() {
+	tests := []struct {
+		name             string
+		page             int
+		pageSize         int
+		text             string
+		author           string
+		slug             string
+		expectedTotal    int64
+		expectedCount    int
+		expectedSlugs    []string
+		notExpectedSlugs []string
+	}{
+		{
+			name:             "First page with filter by author",
+			page:             1,
+			pageSize:         1,
+			author:           "author1",
+			expectedTotal:    2,
+			expectedCount:    1,
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+		},
+		{
+			name:             "Second page with filter by author",
+			page:             2,
+			pageSize:         1,
+			author:           "author1",
+			expectedTotal:    2,
+			expectedCount:    1,
+			expectedSlugs:    []string{"slug3"},
+			notExpectedSlugs: []string{"slug1", "slug2"},
+		},
+		{
+			name:             "First page with filter by text",
+			page:             1,
+			pageSize:         1,
+			text:             "post",
+			expectedTotal:    3,
+			expectedCount:    1,
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+		},
+		{
+			name:             "Pagination with text and author filter",
+			page:             1,
+			pageSize:         1,
+			text:             "post",
+			author:           "author1",
+			expectedTotal:    2,
+			expectedCount:    1,
+			expectedSlugs:    []string{"slug1"},
+			notExpectedSlugs: []string{"slug2", "slug3"},
+		},
+		{
+			name:             "Pagination with text and author filter - second page",
+			page:             2,
+			pageSize:         1,
+			text:             "post",
+			author:           "author1",
+			expectedTotal:    2,
+			expectedCount:    1,
+			expectedSlugs:    []string{"slug3"},
+			notExpectedSlugs: []string{"slug1", "slug2"},
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.W = httptest.NewRecorder()
+			s.Ctx = gin.CreateTestContextOnly(s.W, gin.Default())
+
+			queryString := "page=" + strconv.Itoa(tt.page) + "&pageSize=" + strconv.Itoa(tt.pageSize)
+			if tt.text != "" {
+				queryString += "&text=" + tt.text
+			}
+			if tt.author != "" {
+				queryString += "&author=" + tt.author
+			}
+			if tt.slug != "" {
+				queryString += "&slug=" + tt.slug
+			}
+
+			s.Ctx.Request = httptest.NewRequest(
+				"GET",
+				"/api/v1/posts?"+queryString,
+				nil,
+			)
+			s.Ctx.Request.Header.Set("Content-Type", "application/json")
+
+			ListPosts(s.Ctx, s.QueryBus)
+
+			assert.Equal(s.T(), http.StatusOK, s.W.Code)
+			assert.Contains(s.T(), s.W.Body.String(), `"total":`+strconv.FormatInt(tt.expectedTotal, 10))
+			assert.Contains(s.T(), s.W.Body.String(), `"page":`+strconv.Itoa(tt.page))
+			assert.Contains(s.T(), s.W.Body.String(), `"page_size":`+strconv.Itoa(tt.pageSize))
+
+			for _, slug := range tt.expectedSlugs {
+				assert.Contains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+
+			for _, slug := range tt.notExpectedSlugs {
+				assert.NotContains(s.T(), s.W.Body.String(), `"slug":"`+slug+`"`)
+			}
+		})
+	}
 }
 
 func TestListPostsTestSuite(t *testing.T) {

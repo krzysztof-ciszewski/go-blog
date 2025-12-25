@@ -1,8 +1,6 @@
 package view
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -16,12 +14,10 @@ type PostView struct {
 
 func NewPostView(
 	id uuid.UUID,
-	createdAt time.Time,
-	updatedAt time.Time,
 	slug string,
 	title string,
 	content string,
 	author string,
 ) PostView {
-	return PostView{entityView: NewEntityView(id, createdAt, updatedAt), Slug: slug, Title: title, Content: content, Author: author}
+	return PostView{entityView: NewEntityView(id), Slug: slug, Title: title, Content: content, Author: author}
 }

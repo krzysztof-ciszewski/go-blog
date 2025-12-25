@@ -2,7 +2,7 @@ package post
 
 import (
 	"context"
-	query "main/internal/Application/Query"
+	post_query "main/internal/Application/Query/Post"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 
@@ -20,7 +20,7 @@ func GetPostById(ctx *gin.Context, queryBus query_bus.QueryBus) {
 		return
 	}
 
-	q := query.NewGetPostQuery(parsedUUID)
+	q := post_query.NewGetPostQuery(parsedUUID)
 	post, err := queryBus.Execute(context.Background(), q)
 
 	if err != nil {

@@ -1,9 +1,11 @@
-package query
+package user_query
 
 import (
 	"context"
 	view "main/internal/Application/View"
 	repository "main/internal/Domain/Repository"
+
+	"github.com/google/uuid"
 )
 
 type FindUserByQueryHandler struct {
@@ -22,9 +24,7 @@ func (h FindUserByQueryHandler) Handle(ctx context.Context, query any) (any, err
 	}
 
 	return view.NewUserView(
-		userEntity.Id(),
-		userEntity.CreatedAt(),
-		userEntity.UpdatedAt(),
+		uuid.MustParse(userEntity.ID.String()),
 		userEntity.Email,
 		userEntity.Provider,
 		userEntity.Name,

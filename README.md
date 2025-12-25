@@ -17,10 +17,14 @@ The application implements a **Query Bus pattern** for handling read operations 
 
 The Query Bus supports:
 - **GetPostQuery**: Retrieve a single post by UUID
-- **FindBySlugQuery**: Retrieve a post by its unique slug
-- **FindAllQuery**: Retrieve all posts
-- **FindAllByTextQuery**: Search posts by content text
-- **FindAllByAuthorQuery**: Filter posts by author name
+- **FindAllByQuery**: Retrieve posts with advanced filtering and pagination
+  - **Pagination**: Supports `page` and `pageSize` parameters
+  - **Filtering**: Supports multiple filter combinations:
+    - `slug`: Filter by post slug (partial match)
+    - `text`: Search in post title and content (partial match)
+    - `author`: Filter by author name (partial match)
+  - Filters can be combined (e.g., filter by text AND author)
+  - Returns paginated results with total count, current page, and page size
 
 ### Project Structure
 
@@ -61,7 +65,7 @@ blog/
 - **Event-Driven Architecture**: Uses RabbitMQ (AMQP) for asynchronous message processing
 - **Dead Letter Queue**: Automatic routing of failed messages to dead letter queues via custom RabbitMQ topology builder
 - **Domain-Driven Design**: Clean architecture with clear separation of concerns
-- **RESTful API**: HTTP endpoints for blog operations with filtering and search
+- **RESTful API**: HTTP endpoints for blog operations with advanced filtering, search, and pagination
 - **OAuth Authentication**: GitHub OAuth integration for user authentication
 - **User Management**: User entity with OAuth token storage
 - **PostgreSQL**: Persistent data storage with proper data types
@@ -219,13 +223,19 @@ You can use tools like [Swagger UI](https://swagger.io/tools/swagger-ui/) or [Po
 
 ### Query Flow (Read Operations)
 
-1. **Client sends GET request** to a query endpoint (e.g., `/api/v1/posts`, `/api/v1/posts/:id`, `/api/v1/posts/slug/:slug`)
-2. **Server creates a query object** (e.g., `GetPostQuery`, `FindAllQuery`, `FindBySlugQuery`)
+1. **Client sends GET request** to a query endpoint (e.g., `/api/v1/posts`, `/api/v1/posts/:id`)
+2. **Server creates a query object** (e.g., `GetPostQuery`, `FindAllByQuery`)
 3. **Query is executed** synchronously through the Query Bus
-4. **Query handler** retrieves data from the repository
+4. **Query handler** retrieves data from the repository with optional filtering and pagination
 5. **Response is returned** immediately to the client
 
 **Key Difference:** Queries are handled synchronously for immediate responses, while commands are processed asynchronously via RabbitMQ for better scalability and decoupling.
+
+**Filtering and Pagination:**
+- The `FindAllByQuery` supports multiple filter parameters (slug, text, author) that can be combined
+- Filters use partial matching (LIKE queries) for flexible searching
+- Pagination is handled at the repository level with proper offset/limit calculations
+- Response includes total count for building pagination UI
 
 ### Message Queues
 
@@ -294,8 +304,17 @@ This will:
 The project uses:
 - **testify/suite**: For organized test suites
 - **testify/assert**: For assertions
+- **Table-driven tests**: Comprehensive test coverage using table-driven test patterns for pagination and filtering scenarios
 - **SQLite**: For Watermill command/event storage in tests (via `watermill-sqlite`)
 - **Test DI Container**: Custom dependency injection container for tests (see `internal/Infrastructure/DependencyInjection/Test/`)
+
+**Test Coverage:**
+- Handler tests include comprehensive table-driven tests for:
+  - Pagination scenarios (different page sizes, page numbers, edge cases)
+  - Multi-field filtering (combinations of slug, text, and author filters)
+  - Pagination combined with filtering
+  - Empty result scenarios
+  - Invalid input handling
 
 For detailed testing guidelines, see [`docs/HANDLER_TEST_GUIDELINES.md`](docs/HANDLER_TEST_GUIDELINES.md).
 

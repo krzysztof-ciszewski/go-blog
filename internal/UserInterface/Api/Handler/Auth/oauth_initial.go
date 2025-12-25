@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	query "main/internal/Application/Query"
+	query "main/internal/Application/Query/User"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 	"os"

@@ -7,15 +7,17 @@ import (
 )
 
 type User struct {
-	entity
-	Email          string
-	Password       string
-	Provider       string
-	Name           string
-	FirstName      string
-	LastName       string
-	ProviderUserId string
-	AvatarURL      string
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey;column:id;default:gen_random_uuid()"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+	UpdatedAt      time.Time `gorm:"column:updated_at"`
+	Email          string    `gorm:"column:email"`
+	Password       string    `gorm:"column:password"`
+	Provider       string    `gorm:"column:provider"`
+	Name           string    `gorm:"column:name"`
+	FirstName      string    `gorm:"column:first_name"`
+	LastName       string    `gorm:"column:last_name"`
+	ProviderUserId string    `gorm:"column:provider_user_id"`
+	AvatarURL      string    `gorm:"column:avatar_url"`
 }
 
 func NewUser(
@@ -32,7 +34,9 @@ func NewUser(
 	avatarURL string,
 ) User {
 	return User{
-		entity:         NewEntity(id, createdAt, updatedAt),
+		ID:             id,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
 		Email:          email,
 		Password:       password,
 		Provider:       provider,

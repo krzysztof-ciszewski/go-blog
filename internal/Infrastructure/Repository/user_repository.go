@@ -29,9 +29,9 @@ func (u userRepository) Save(user entity.User) error {
 			avatar_url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		`,
-		user.Id().String(),
-		user.CreatedAt().Format(time.RFC3339),
-		user.UpdatedAt().Format(time.RFC3339),
+		user.ID.String(),
+		user.CreatedAt.Format(time.RFC3339),
+		user.UpdatedAt.Format(time.RFC3339),
 		user.Email,
 		sqlNullString(user.Password),
 		user.Provider,

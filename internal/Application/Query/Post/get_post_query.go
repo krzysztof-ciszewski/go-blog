@@ -1,4 +1,4 @@
-package query
+package post_query
 
 import "github.com/google/uuid"
 

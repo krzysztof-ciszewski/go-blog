@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	post_command "main/internal/Application/Command/Post"
 	user_command "main/internal/Application/Command/User"
-	query "main/internal/Application/Query"
+	post_query "main/internal/Application/Query/Post"
+	user_query "main/internal/Application/Query/User"
 	domain_repository "main/internal/Domain/Repository"
 	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	query_bus "main/internal/Infrastructure/QueryBus"
@@ -19,6 +20,9 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var lock = sync.Mutex{}
@@ -33,10 +37,16 @@ func GetTestContainer() *dependency_injection.Container {
 		if err != nil {
 			panic(err)
 		}
+		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
+		if err != nil {
+			panic(err)
+		}
 
 		pubSubDb := GetPubSubDb()
 
-		postRepository := infra_repository.NewPostRepository(db)
+		postRepository := infra_repository.NewPostRepository(gormDb)
 		userRepository := infra_repository.NewUserRepository(db)
 
 		queryBus := buildQueryBus()
@@ -308,12 +318,9 @@ func buildEventProcessor(
 }
 
 func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository, userRepository domain_repository.UserRepository) {
-	queryBus.RegisterHandler(query.GetPostQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(query.FindAllQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(query.FindAllByTextQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(query.FindAllByAuthorQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(query.FindBySlugQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(query.FindUserByQueryHandler{UserRepository: userRepository})
+	queryBus.RegisterHandler(post_query.GetPostQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(post_query.FindAllByQueryHandler{PostRepository: postRepository})
+	queryBus.RegisterHandler(user_query.FindUserByQueryHandler{UserRepository: userRepository})
 }
 
 func registerCommandHandlers(

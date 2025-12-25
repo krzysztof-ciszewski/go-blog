@@ -58,9 +58,6 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 		apiGroup.GET("/posts/:id", func(ctx *gin.Context) {
 			post.GetPostById(ctx, container.QueryBus)
 		})
-		apiGroup.GET("/posts/slug/:slug", func(ctx *gin.Context) {
-			post.GetPostBySlug(ctx, container.QueryBus)
-		})
 		apiGroup.POST("/posts", func(ctx *gin.Context) {
 			post.CreatePost(ctx, container.CommandBus)
 		})

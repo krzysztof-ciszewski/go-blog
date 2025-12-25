@@ -50,7 +50,7 @@
       "get": {
         "tags": ["Posts"],
         "summary": "List posts",
-        "description": "Retrieve all posts, optionally filtered by text content or author",
+        "description": "Retrieve paginated posts, optionally filtered by slug, text content, or author",
         "operationId": "listPosts",
         "security": [
           {
@@ -59,9 +59,38 @@
         ],
         "parameters": [
           {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "description": "Filter posts by slug (partial match)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "text",
             "in": "query",
-            "description": "Search posts by content text",
+            "description": "Search posts by content text (partial match)",
             "required": false,
             "schema": {
               "type": "string"
@@ -70,7 +99,7 @@
           {
             "name": "author",
             "in": "query",
-            "description": "Filter posts by author name",
+            "description": "Filter posts by author name (partial match)",
             "required": false,
             "schema": {
               "type": "string"
@@ -83,13 +112,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Post"
-                  }
+                  "$ref": "#/components/schemas/PaginatedPostResponse"
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -222,50 +251,6 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/v1/posts/slug/{slug}": {
-      "get": {
-        "tags": ["Posts"],
-        "summary": "Get post by slug",
-        "description": "Retrieve a single post by its unique slug",
-        "operationId": "getPostBySlug",
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "description": "Post slug",
-            "schema": {
-              "type": "string",
-              "minLength": 3,
-              "maxLength": 255
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Post"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
@@ -410,22 +395,12 @@
     "schemas": {
       "Post": {
         "type": "object",
-        "required": ["id", "created_at", "updated_at", "slug", "title", "content", "author"],
+        "required": ["id", "slug", "title", "content", "author"],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid",
             "description": "Post UUID"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last update timestamp"
           },
           "slug": {
             "type": "string",
@@ -450,6 +425,32 @@
             "minLength": 3,
             "maxLength": 255,
             "description": "Author name"
+          }
+        }
+      },
+      "PaginatedPostResponse": {
+        "type": "object",
+        "required": ["items", "total", "page", "page_size"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Post"
+            },
+            "description": "Array of posts"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of posts matching the filters"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Current page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of items per page"
           }
         }
       },
