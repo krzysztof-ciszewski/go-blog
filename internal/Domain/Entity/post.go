@@ -13,7 +13,7 @@ type Post struct {
 	Slug      string    `gorm:"column:slug"`
 	Title     string    `gorm:"column:title"`
 	Content   string    `gorm:"column:content"`
-	Author    string    `gorm:"column:author"`
+	AuthorId  uuid.UUID `gorm:"column:author_id"`
 }
 
 func NewPost(
@@ -23,7 +23,7 @@ func NewPost(
 	slug string,
 	title string,
 	content string,
-	author string,
+	authorId uuid.UUID,
 ) Post {
-	return Post{ID: id, CreatedAt: createdAt, UpdatedAt: updatedAt, Slug: slug, Title: title, Content: content, Author: author}
+	return Post{ID: id, CreatedAt: createdAt, UpdatedAt: updatedAt, Slug: slug, Title: title, Content: content, AuthorId: authorId}
 }

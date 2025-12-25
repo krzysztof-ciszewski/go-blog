@@ -7,9 +7,9 @@ type createPostCommand struct {
 	Slug    string    `json:"slug"`
 	Title   string    `json:"title"`
 	Content string    `json:"content"`
-	Author  string    `json:"author"`
+	Author  uuid.UUID `json:"author"`
 }
 
-func NewCreatePostCommand(id uuid.UUID, slug string, title string, content string, author string) createPostCommand {
+func NewCreatePostCommand(id uuid.UUID, slug string, title string, content string, author uuid.UUID) createPostCommand {
 	return createPostCommand{Id: id, Slug: slug, Title: title, Content: content, Author: author}
 }

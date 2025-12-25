@@ -4,8 +4,6 @@ import (
 	"context"
 	view "main/internal/Application/View"
 	repository "main/internal/Domain/Repository"
-
-	"github.com/google/uuid"
 )
 
 type GetPostQueryHandler struct {
@@ -25,11 +23,11 @@ func (h GetPostQueryHandler) Handle(ctx context.Context, query any) (any, error)
 	}
 
 	return view.NewPostView(
-		uuid.MustParse(post.ID.String()),
+		post.ID,
 		post.Slug,
 		post.Title,
 		post.Content,
-		post.Author,
+		post.AuthorId,
 	), nil
 }
 

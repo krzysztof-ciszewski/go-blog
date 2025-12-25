@@ -11,7 +11,6 @@ import (
 )
 
 func GetPostById(ctx *gin.Context, queryBus query_bus.QueryBus) {
-
 	id := ctx.Param("id")
 
 	parsedUUID, err := uuid.Parse(id)

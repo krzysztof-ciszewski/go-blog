@@ -1,0 +1,7 @@
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS idx_posts_author_id;
+
+DROP INDEX IF EXISTS idx_posts_author_id;
+
+ALTER TABLE posts DROP COLUMN IF EXISTS author_id;
+
+ALTER TABLE posts ADD COLUMN author VARCHAR(255);

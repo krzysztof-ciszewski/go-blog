@@ -59,7 +59,7 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 			post.GetPostById(ctx, container.QueryBus)
 		})
 		apiGroup.POST("/posts", func(ctx *gin.Context) {
-			post.CreatePost(ctx, container.CommandBus)
+			post.CreatePost(ctx, container.CommandBus, container.QueryBus)
 		})
 		apiGroup.DELETE("/posts/:id", func(ctx *gin.Context) {
 			post.DeletePost(ctx, container.CommandBus)

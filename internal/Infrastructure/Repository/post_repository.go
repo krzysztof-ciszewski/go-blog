@@ -28,10 +28,10 @@ func (p postRepository) FindAllBy(page int, pageSize int, slug string, text stri
 		tx = tx.Where("slug LIKE ?", "%"+slug+"%")
 	}
 	if text != "" {
-		tx = tx.Where("(content LIKE ? OR title LIKE ?)", "%"+text+"%", "%"+text+"%")
+		tx = tx.Where("content LIKE ? OR title LIKE ?", "%"+text+"%", "%"+text+"%")
 	}
 	if author != "" {
-		tx = tx.Where("author LIKE ?", "%"+author+"%")
+		tx = tx.Joins("JOIN users ON posts.author_id = users.id AND users.name LIKE ?", "%"+author+"%")
 	}
 	err := tx.Count(&total).Error
 	if err != nil {

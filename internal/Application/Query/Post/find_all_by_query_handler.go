@@ -37,7 +37,7 @@ func (h FindAllByQueryHandler) Handle(ctx context.Context, query any) (any, erro
 			post.Slug,
 			post.Title,
 			post.Content,
-			post.Author,
+			post.AuthorId,
 		)
 	}
 

@@ -10,11 +10,10 @@ import (
 
 func RequireAuth() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		_, err := gothic.Store.Get(ctx.Request, os.Getenv("SESSION_NAME"))
-		if err != nil {
+		session, err := gothic.Store.Get(ctx.Request, os.Getenv("SESSION_NAME"))
+		if err != nil || session.Values["provider_user_id"] == nil || session.Values["email"] == nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"message": "Unauthorized User",
-				"error":   err.Error(),
 			})
 			return
 		}

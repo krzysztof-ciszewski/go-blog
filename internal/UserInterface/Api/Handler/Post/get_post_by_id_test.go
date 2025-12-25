@@ -31,13 +31,22 @@ func (s *GetPostByIdTestSuite) SetupTest() {
 	s.Ctx = gin.CreateTestContextOnly(s.W, gin.Default())
 	gin.SetMode(gin.TestMode)
 	s.PubSubDb = test.GetPubSubDb()
+	test.GetTestContainer().DB.Exec("DELETE FROM users")
+	userUuid, err := uuid.NewRandom()
+	if err != nil {
+		panic(err)
+	}
+	test.GetTestContainer().DB.Exec(`
+		INSERT INTO users (id, created_at, updated_at, provider, provider_user_id, email)
+		VALUES (?, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'test', 'testprovideruser', 'test@example.com')
+	`, userUuid.String())
 	test.GetTestContainer().DB.Exec("DELETE FROM posts")
 	postUuid, err := uuid.NewRandom()
 	if err != nil {
 		panic(err)
 	}
 	s.PostUuid = postUuid
-	test.GetTestContainer().DB.Exec("INSERT INTO posts (id, created_at, updated_at, slug, title, content, author) VALUES ($1, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'testslug', 'testtitle', 'testcontent', 'testauthor')", postUuid.String())
+	test.GetTestContainer().DB.Exec("INSERT INTO posts (id, created_at, updated_at, slug, title, content, author_id) VALUES ($1, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'testslug', 'testtitle', 'testcontent', $2)", postUuid.String(), userUuid.String())
 }
 
 func (s *GetPostByIdTestSuite) TestGetPostById() {
@@ -61,7 +70,6 @@ func (s *GetPostByIdTestSuite) TestGetPostById() {
 	assert.Contains(s.T(), s.W.Body.String(), `"slug":"testslug"`)
 	assert.Contains(s.T(), s.W.Body.String(), `"title":"testtitle"`)
 	assert.Contains(s.T(), s.W.Body.String(), `"content":"testcontent"`)
-	assert.Contains(s.T(), s.W.Body.String(), `"author":"testauthor"`)
 }
 
 func (s *GetPostByIdTestSuite) TestGetPostByIdInvalidUUID() {

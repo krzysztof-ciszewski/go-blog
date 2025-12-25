@@ -34,27 +34,56 @@ func (s *ListPostsTestSuite) SetupTest() {
 	s.Ctx = gin.CreateTestContextOnly(s.W, gin.Default())
 	gin.SetMode(gin.TestMode)
 	s.PubSubDb = test.GetPubSubDb()
+	test.GetTestContainer().DB.Exec("DELETE FROM users")
+	userUuid1, err := uuid.NewRandom()
+	if err != nil {
+		panic(err)
+	}
+	test.GetTestContainer().DB.Exec(`
+		INSERT INTO users (id, created_at, updated_at, provider, provider_user_id, email, name)
+		VALUES (?, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'test', 'testprovideruser1', 'test1@example.com', 'author1')
+	`, userUuid1.String())
+	userUuid2, err := uuid.NewRandom()
+	if err != nil {
+		panic(err)
+	}
+	test.GetTestContainer().DB.Exec(`
+		INSERT INTO users (id, created_at, updated_at, provider, provider_user_id, email, name)
+		VALUES (?, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'test', 'testprovideruser2', 'test2@example.com', 'author2')
+	`, userUuid2.String())
 	test.GetTestContainer().DB.Exec("DELETE FROM posts")
 	postUuid1, err := uuid.NewRandom()
 	if err != nil {
 		panic(err)
 	}
 	s.PostUuid1 = postUuid1
-	test.GetTestContainer().DB.Exec("INSERT INTO posts (id, created_at, updated_at, slug, title, content, author) VALUES ($1, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'slug1', 'First Post', 'This is the first post content', 'author1')", postUuid1.String())
+	test.GetTestContainer().DB.Exec(`INSERT INTO posts (id, created_at, updated_at, slug, title, content, author_id)
+	VALUES ($1, '2021-01-01 00:00:00', '2021-01-01 00:00:00', 'slug1', 'First Post', 'This is the first post content', $2)`,
+		postUuid1.String(),
+		userUuid1.String(),
+	)
 
 	postUuid2, err := uuid.NewRandom()
 	if err != nil {
 		panic(err)
 	}
 	s.PostUuid2 = postUuid2
-	test.GetTestContainer().DB.Exec("INSERT INTO posts (id, created_at, updated_at, slug, title, content, author) VALUES ($1, '2021-01-02 00:00:00', '2021-01-02 00:00:00', 'slug2', 'Second Post', 'This is the second post content', 'author2')", postUuid2.String())
+	test.GetTestContainer().DB.Exec(`INSERT INTO posts (id, created_at, updated_at, slug, title, content, author_id)
+	VALUES ($1, '2021-01-02 00:00:00', '2021-01-02 00:00:00', 'slug2', 'Second Post', 'This is the second post content', $2)`,
+		postUuid2.String(),
+		userUuid2.String(),
+	)
 
 	postUuid3, err := uuid.NewRandom()
 	if err != nil {
 		panic(err)
 	}
 	s.PostUuid3 = postUuid3
-	test.GetTestContainer().DB.Exec("INSERT INTO posts (id, created_at, updated_at, slug, title, content, author) VALUES ($1, '2021-01-03 00:00:00', '2021-01-03 00:00:00', 'slug3', 'Third Post', 'This is the third post content', 'author1')", postUuid3.String())
+	test.GetTestContainer().DB.Exec(`INSERT INTO posts (id, created_at, updated_at, slug, title, content, author_id)
+	VALUES ($1, '2021-01-03 00:00:00', '2021-01-03 00:00:00', 'slug3', 'Third Post', 'This is the third post content', $2)`,
+		postUuid3.String(),
+		userUuid1.String(),
+	)
 }
 
 func (s *ListPostsTestSuite) TestListPosts() {
@@ -106,7 +135,6 @@ func (s *ListPostsTestSuite) TestListPostsByAuthor() {
 	assert.Equal(s.T(), http.StatusOK, s.W.Code)
 	assert.Contains(s.T(), s.W.Body.String(), `"slug":"slug1"`)
 	assert.Contains(s.T(), s.W.Body.String(), `"slug":"slug3"`)
-	assert.Contains(s.T(), s.W.Body.String(), `"author":"author1"`)
 	assert.NotContains(s.T(), s.W.Body.String(), `"slug":"slug2"`)
 }
 

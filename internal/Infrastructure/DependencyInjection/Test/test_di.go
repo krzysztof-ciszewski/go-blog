@@ -22,7 +22,6 @@ import (
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var lock = sync.Mutex{}
@@ -33,9 +32,7 @@ func GetTestContainer() *dependency_injection.Container {
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
-		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
-		})
+		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{})
 		if err != nil {
 			panic(err)
 		}
