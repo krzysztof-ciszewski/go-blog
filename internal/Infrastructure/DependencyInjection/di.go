@@ -1,7 +1,6 @@
 package dependency_injection
 
 import (
-	"database/sql"
 	"log/slog"
 	post_command "main/internal/Application/Command/Post"
 	user_command "main/internal/Application/Command/User"
@@ -25,7 +24,7 @@ import (
 )
 
 type Container struct {
-	DB               *sql.DB
+	DB               *gorm.DB
 	QueryBus         query_bus.QueryBus
 	CommandBus       *cqrs.CommandBus
 	EventBus         *cqrs.EventBus
@@ -42,17 +41,13 @@ func GetContainer() *Container {
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
-		db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
-		if err != nil {
-			panic(err)
-		}
 		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{})
 		if err != nil {
 			panic(err)
 		}
 
 		postRepository := infra_repository.NewPostRepository(gormDb)
-		userRepository := infra_repository.NewUserRepository(db)
+		userRepository := infra_repository.NewUserRepository(gormDb)
 
 		queryBus := buildQueryBus()
 		registerQueryHandlers(queryBus, postRepository, userRepository)
@@ -73,7 +68,7 @@ func GetContainer() *Container {
 		registerEventHandlers(eventProcessor, eventBus)
 
 		container = &Container{
-			DB:               db,
+			DB:               gormDb,
 			QueryBus:         queryBus,
 			CommandBus:       commandBus,
 			EventBus:         eventBus,

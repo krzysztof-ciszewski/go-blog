@@ -33,10 +33,6 @@ func GetTestContainer() *dependency_injection.Container {
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
-		db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
-		if err != nil {
-			panic(err)
-		}
 		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Info),
 		})
@@ -47,7 +43,7 @@ func GetTestContainer() *dependency_injection.Container {
 		pubSubDb := GetPubSubDb()
 
 		postRepository := infra_repository.NewPostRepository(gormDb)
-		userRepository := infra_repository.NewUserRepository(db)
+		userRepository := infra_repository.NewUserRepository(gormDb)
 
 		queryBus := buildQueryBus()
 		registerQueryHandlers(queryBus, postRepository, userRepository)
@@ -67,7 +63,7 @@ func GetTestContainer() *dependency_injection.Container {
 		registerEventHandlers(eventProcessor, eventBus)
 
 		container = &dependency_injection.Container{
-			DB:               db,
+			DB:               gormDb,
 			QueryBus:         queryBus,
 			CommandBus:       commandBus,
 			EventBus:         eventBus,
