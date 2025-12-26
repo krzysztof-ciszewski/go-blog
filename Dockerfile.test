@@ -13,5 +13,4 @@ RUN go mod download
 COPY . .
 
 # Run tests
-CMD ["sh", "-c", "go run cmd/migrate.go && go test ./internal/..."]
-
+CMD ["sh", "-c", "go run cmd/migrate.go && go test -race ./internal/..."]

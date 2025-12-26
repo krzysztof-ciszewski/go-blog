@@ -1,6 +1,7 @@
 package amqp
 
 import (
+	"fmt"
 	"maps"
 	"os"
 
@@ -25,8 +26,11 @@ func (builder *MyTopologyBuilder) ExchangeDeclare(channel *amqp091.Channel, exch
 }
 
 func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params amqp.BuildTopologyParams, config amqp.Config, logger watermill.LoggerAdapter) error {
+	dlxRoutingKeySuffix := os.Getenv("AMQP_DLX_ROUTING_KEY_SUFFIX")
+	dlxExchangeName := os.Getenv("AMQP_DLX_EXCHANGE")
+	dlxQueueSuffix := os.Getenv("AMQP_DLX_QUEUE_SUFFIX")
 	if err := channel.ExchangeDeclare(
-		os.Getenv("AMQP_DLX_EXCHANGE"),
+		dlxExchangeName,
 		"direct",
 		true,
 		false,
@@ -34,28 +38,37 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 		false,
 		nil,
 	); err != nil {
-		return errors.Wrap(err, "cannot declare dlx exchange")
+		return errors.Wrap(err, fmt.Sprintf("cannot declare dlx exchange %s", dlxExchangeName))
 	}
 
+	dlqQueueName := params.QueueName + "." + dlxQueueSuffix
+	dlqRoutingKey := params.QueueName + "." + dlxRoutingKeySuffix
 	if _, err := channel.QueueDeclare(
-		params.QueueName+"."+os.Getenv("AMQP_DLX_QUEUE_SUFFIX"),
+		dlqQueueName,
 		true,
 		false,
 		false,
 		false,
 		nil,
 	); err != nil {
-		return errors.Wrap(err, "cannot declare dlq queue")
+		return errors.Wrap(err, fmt.Sprintf("cannot declare dlq queue %s", dlqQueueName))
 	}
 
 	if err := channel.QueueBind(
-		params.QueueName+"."+os.Getenv("AMQP_DLX_QUEUE_SUFFIX"),
-		params.QueueName+"."+os.Getenv("AMQP_DLX_ROUTING_KEY_SUFFIX"),
-		os.Getenv("AMQP_DLX_EXCHANGE"),
+		dlqQueueName,
+		dlqRoutingKey,
+		dlxExchangeName,
 		false,
 		nil,
 	); err != nil {
-		return errors.Wrap(err, "cannot bind dlq queue")
+		return errors.Wrap(
+			err,
+			fmt.Sprintf("cannot bind dlq queue %s to exchange %s with routing key %s",
+				dlqQueueName,
+				dlxExchangeName,
+				dlqRoutingKey,
+			),
+		)
 	}
 
 	if config.Queue.Arguments == nil {
@@ -63,8 +76,8 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 	}
 
 	queueArguments := make(amqp091.Table)
-	queueArguments["x-dead-letter-exchange"] = os.Getenv("AMQP_DLX_EXCHANGE")
-	queueArguments["x-dead-letter-routing-key"] = params.QueueName + "." + os.Getenv("AMQP_DLX_ROUTING_KEY_SUFFIX")
+	queueArguments["x-dead-letter-exchange"] = dlxExchangeName
+	queueArguments["x-dead-letter-routing-key"] = dlqRoutingKey
 
 	maps.Copy(config.Queue.Arguments, queueArguments)
 
@@ -76,7 +89,7 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 		config.Queue.NoWait,
 		config.Queue.Arguments,
 	); err != nil {
-		return errors.Wrap(err, "cannot declare queue")
+		return errors.Wrap(err, fmt.Sprintf("cannot declare queue %s", params.QueueName))
 	}
 
 	logger.Debug("Queue declared", nil)
@@ -86,7 +99,7 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 		return nil
 	}
 	if err := builder.ExchangeDeclare(channel, params.ExchangeName, config); err != nil {
-		return errors.Wrap(err, "cannot declare exchange")
+		return errors.Wrap(err, fmt.Sprintf("cannot declare exchange %s", params.ExchangeName))
 	}
 
 	logger.Debug("Exchange declared", nil)
@@ -98,7 +111,14 @@ func (builder *MyTopologyBuilder) BuildTopology(channel *amqp091.Channel, params
 		config.QueueBind.NoWait,
 		config.QueueBind.Arguments,
 	); err != nil {
-		return errors.Wrap(err, "cannot bind queue")
+		return errors.Wrap(
+			err,
+			fmt.Sprintf("cannot bind queue %s to exchange %s with routing key %s",
+				params.QueueName,
+				params.ExchangeName,
+				params.RoutingKey,
+			),
+		)
 	}
 	return nil
 }
