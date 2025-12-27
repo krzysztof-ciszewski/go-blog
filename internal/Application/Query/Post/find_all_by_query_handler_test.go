@@ -22,6 +22,10 @@ func (m *mockPostRepositoryForFindAll) Save(post entity.Post) error {
 	return nil
 }
 
+func (m *mockPostRepositoryForFindAll) Update(post entity.Post) error {
+	return nil
+}
+
 func (m *mockPostRepositoryForFindAll) FindByID(id uuid.UUID) (entity.Post, error) {
 	return entity.Post{}, nil
 }

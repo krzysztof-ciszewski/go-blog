@@ -16,6 +16,7 @@ func TestBootstrapGin(t *testing.T) {
 	expectedRoutes := [][]string{
 		{"GET", "/api/v1/posts"},
 		{"GET", "/api/v1/posts/:id"},
+		{"PUT", "/api/v1/posts/:id"},
 		{"POST", "/api/v1/posts"},
 		{"DELETE", "/api/v1/posts/:id"},
 		{"GET", "/auth/:provider/callback"},

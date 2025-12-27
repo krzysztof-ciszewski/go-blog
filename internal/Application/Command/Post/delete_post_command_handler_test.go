@@ -27,6 +27,10 @@ func (m *mockPostRepositoryDelete) Save(post entity.Post) error {
 	return nil
 }
 
+func (m *mockPostRepositoryDelete) Update(post entity.Post) error {
+	return nil
+}
+
 func (m *mockPostRepositoryDelete) FindByID(id uuid.UUID) (entity.Post, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(id)

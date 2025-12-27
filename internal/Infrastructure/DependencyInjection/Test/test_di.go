@@ -327,6 +327,7 @@ func registerCommandHandlers(
 ) {
 	commandProcessor.AddHandlers(
 		cqrs.NewCommandHandler("CreatePostCommandHandler", post_command.CreatePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
+		cqrs.NewCommandHandler("UpdatePostCommandHandler", post_command.UpdatePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
 		cqrs.NewCommandHandler("DeletePostCommandHandler", post_command.DeletePostCommandHandler{PostRepository: postRepository, EventBus: eventBus}.Handle),
 		cqrs.NewCommandHandler("CreateUserCommandHandler", user_command.CreateUserCommandHandler{UserRepository: userRepository, EventBus: eventBus}.Handle),
 	)

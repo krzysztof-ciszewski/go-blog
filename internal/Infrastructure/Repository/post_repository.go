@@ -17,6 +17,15 @@ func (p postRepository) Save(post entity.Post) error {
 	return p.db.Create(&post).Error
 }
 
+func (p postRepository) Update(post entity.Post) error {
+	return p.db.Model(&post).Where("id = ?", post.ID).Updates(map[string]interface{}{
+		"slug":       post.Slug,
+		"title":      post.Title,
+		"content":    post.Content,
+		"updated_at": post.UpdatedAt,
+	}).Error
+}
+
 func (p postRepository) FindByID(id uuid.UUID) (entity.Post, error) {
 	return gorm.G[entity.Post](p.db).Where("id = ?", id).First(context.Background())
 }
