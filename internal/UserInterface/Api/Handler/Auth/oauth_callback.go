@@ -4,6 +4,7 @@ import (
 	"context"
 	command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query/User"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
 	"os"
@@ -14,7 +15,10 @@ import (
 	"github.com/markbates/goth/gothic"
 )
 
-func OauthCallback(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bus.QueryBus) {
+func OauthCallback(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bus.QueryBus, telemetry open_telemetry.Telemetry) {
+	_, span := telemetry.TraceStart(ctx.Request.Context(), "OauthCallback")
+	defer span.End()
+
 	q := ctx.Request.URL.Query()
 	q.Add("provider", ctx.Param("provider"))
 	ctx.Request.URL.RawQuery = q.Encode()

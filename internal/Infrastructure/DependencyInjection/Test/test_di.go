@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	post_command "main/internal/Application/Command/Post"
@@ -8,7 +9,9 @@ import (
 	post_query "main/internal/Application/Query/Post"
 	user_query "main/internal/Application/Query/User"
 	domain_repository "main/internal/Domain/Repository"
+	config "main/internal/Infrastructure/Config"
 	dependency_injection "main/internal/Infrastructure/DependencyInjection"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	infra_repository "main/internal/Infrastructure/Repository"
 	"os"
@@ -40,12 +43,17 @@ func GetTestContainer() *dependency_injection.Container {
 			panic(err)
 		}
 
+		telemetry, err := open_telemetry.NewTelemetry(context.Background(), *config.GetTelemetryConfig())
+		if err != nil {
+			panic(err)
+		}
+
 		pubSubDb := GetPubSubDb()
 
 		postRepository := infra_repository.NewPostRepository(gormDb)
 		userRepository := infra_repository.NewUserRepository(gormDb)
 
-		queryBus := buildQueryBus()
+		queryBus := buildQueryBus(*telemetry)
 		registerQueryHandlers(queryBus, postRepository, userRepository)
 
 		logger := buildWatermillLogger()
@@ -116,8 +124,8 @@ func buildGenerateEventsTopicFunc() func(eventName string) string {
 	}
 }
 
-func buildQueryBus() query_bus.QueryBus {
-	return query_bus.NewQueryBus()
+func buildQueryBus(telemetry open_telemetry.Telemetry) query_bus.QueryBus {
+	return query_bus.NewQueryBus(telemetry)
 }
 
 func buildRouter(logger watermill.LoggerAdapter) *message.Router {

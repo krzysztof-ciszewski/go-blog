@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	auth "main/internal/UserInterface/Api/Handler/Auth"
 	post "main/internal/UserInterface/Api/Handler/Post"
@@ -17,6 +18,8 @@ import (
 )
 
 func BootstrapGin(container dependency_injection.Container) *gin.Engine {
+	_, span := container.Telemetry.TraceStart(context.Background(), "BootstrapGin")
+	defer span.End()
 	r := gin.Default()
 
 	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
@@ -29,6 +32,9 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 
 	gothic.Store = store
 
+	r.Use(container.Telemetry.LogRequest())
+	r.Use(container.Telemetry.MeterRequestDuration())
+	r.Use(container.Telemetry.MeterRequestsInFlught())
 	authGroup := r.Group("/auth")
 	apiGroup := r.Group("/api/v1", middleware.RequireAuth())
 
@@ -43,10 +49,10 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 		goth.UseProviders(githubPrivder)
 
 		authGroup.GET("/:provider/callback", func(ctx *gin.Context) {
-			auth.OauthCallback(ctx, container.CommandBus, container.QueryBus)
+			auth.OauthCallback(ctx, container.CommandBus, container.QueryBus, container.Telemetry)
 		})
 		authGroup.GET("/:provider", func(ctx *gin.Context) {
-			auth.OauthInitial(ctx, container.QueryBus)
+			auth.OauthInitial(ctx, container.QueryBus, container.Telemetry)
 		})
 		authGroup.GET("/logout/:provider", auth.OauthLogout)
 	}

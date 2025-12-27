@@ -1,6 +1,7 @@
 package dependency_injection
 
 import (
+	"context"
 	"log/slog"
 	post_command "main/internal/Application/Command/Post"
 	user_command "main/internal/Application/Command/User"
@@ -8,6 +9,8 @@ import (
 	user_query "main/internal/Application/Query/User"
 	domain_repository "main/internal/Domain/Repository"
 	infra_amqp "main/internal/Infrastructure/Amqp"
+	config "main/internal/Infrastructure/Config"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	infra_repository "main/internal/Infrastructure/Repository"
 	"os"
@@ -25,6 +28,7 @@ import (
 
 type Container struct {
 	DB               *gorm.DB
+	Telemetry        open_telemetry.Telemetry
 	QueryBus         query_bus.QueryBus
 	CommandBus       *cqrs.CommandBus
 	EventBus         *cqrs.EventBus
@@ -46,10 +50,15 @@ func GetContainer() *Container {
 			panic(err)
 		}
 
+		telemetry, err := open_telemetry.NewTelemetry(context.Background(), *config.GetTelemetryConfig())
+		if err != nil {
+			panic(err)
+		}
+
 		postRepository := infra_repository.NewPostRepository(gormDb)
 		userRepository := infra_repository.NewUserRepository(gormDb)
 
-		queryBus := buildQueryBus()
+		queryBus := buildQueryBus(telemetry)
 		registerQueryHandlers(queryBus, postRepository, userRepository)
 
 		logger := buildWatermillLogger()
@@ -69,6 +78,7 @@ func GetContainer() *Container {
 
 		container = &Container{
 			DB:               gormDb,
+			Telemetry:        *telemetry,
 			QueryBus:         queryBus,
 			CommandBus:       commandBus,
 			EventBus:         eventBus,
@@ -92,8 +102,8 @@ func buildGenerateEventsTopicFunc() func(eventName string) string {
 	}
 }
 
-func buildQueryBus() query_bus.QueryBus {
-	return query_bus.NewQueryBus()
+func buildQueryBus(telemetry *open_telemetry.Telemetry) query_bus.QueryBus {
+	return query_bus.NewQueryBus(*telemetry)
 }
 
 func buildRouter(logger watermill.LoggerAdapter) *message.Router {

@@ -84,6 +84,18 @@ services:
       - .env.local
     restart: unless-stopped
 
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: blog-otel-lgtm
+    ports:
+      - "3000:3000"   # Grafana
+      - "3100:3100"   # Loki
+      - "3200:3200"   # Tempo
+      - "9090:9090"   # Mimir
+    volumes:
+      - otel_lgtm_data:/var/lib/grafana
+    restart: unless-stopped
+
   test:
     build:
       context: .
@@ -104,3 +116,4 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  otel_lgtm_data:
