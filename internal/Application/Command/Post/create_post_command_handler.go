@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	entity "main/internal/Domain/Entity"
+	event "main/internal/Domain/Event"
 	repository "main/internal/Domain/Repository"
 	"time"
 
@@ -29,5 +30,21 @@ func (h CreatePostCommandHandler) Handle(ctx context.Context, command *createPos
 		return nil
 	}
 
-	return h.PostRepository.Save(post)
+	err := h.PostRepository.Save(post)
+	if err != nil {
+		return err
+	}
+
+	return h.EventBus.Publish(
+		context.Background(),
+		event.NewPostWasCreated(
+			post.ID,
+			post.CreatedAt,
+			post.UpdatedAt,
+			post.Slug,
+			post.Title,
+			post.Content,
+			post.AuthorId,
+		),
+	)
 }

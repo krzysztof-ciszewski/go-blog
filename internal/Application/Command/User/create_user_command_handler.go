@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	entity "main/internal/Domain/Entity"
+	event "main/internal/Domain/Event"
 	repository "main/internal/Domain/Repository"
 	"time"
 
@@ -33,5 +34,22 @@ func (h CreateUserCommandHandler) Handle(ctx context.Context, command *CreateUse
 		return nil
 	}
 
-	return h.UserRepository.Save(user)
+	err := h.UserRepository.Save(user)
+	if err != nil {
+		return err
+	}
+
+	return h.EventBus.Publish(
+		context.Background(),
+		event.NewUserWasCreated(
+			user.ID,
+			user.Email,
+			user.Provider,
+			user.Name,
+			user.FirstName,
+			user.LastName,
+			user.ProviderUserId,
+			user.AvatarURL,
+		),
+	)
 }

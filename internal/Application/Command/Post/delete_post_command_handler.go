@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	event "main/internal/Domain/Event"
 	repository "main/internal/Domain/Repository"
 
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
@@ -13,5 +14,26 @@ type DeletePostCommandHandler struct {
 }
 
 func (h DeletePostCommandHandler) Handle(ctx context.Context, command *deletePostCommand) error {
-	return h.PostRepository.Delete(command.Id)
+	post, err := h.PostRepository.FindByID(command.Id)
+	if err != nil {
+		return err
+	}
+
+	err = h.PostRepository.Delete(command.Id)
+	if err != nil {
+		return err
+	}
+
+	return h.EventBus.Publish(
+		context.Background(),
+		event.NewPostWasDeleted(
+			post.ID,
+			post.CreatedAt,
+			post.UpdatedAt,
+			post.Slug,
+			post.Title,
+			post.Content,
+			post.AuthorId,
+		),
+	)
 }
