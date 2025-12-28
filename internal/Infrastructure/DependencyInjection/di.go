@@ -55,11 +55,11 @@ func GetContainer() *Container {
 			panic(err)
 		}
 
-		postRepository := infra_repository.NewPostRepository(gormDb)
-		userRepository := infra_repository.NewUserRepository(gormDb)
+		postRepository := infra_repository.NewPostRepository(gormDb, telemetry)
+		userRepository := infra_repository.NewUserRepository(gormDb, telemetry)
 
 		queryBus := buildQueryBus(telemetry)
-		registerQueryHandlers(queryBus, postRepository, userRepository)
+		registerQueryHandlers(queryBus, postRepository, userRepository, telemetry)
 
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
@@ -102,8 +102,8 @@ func buildGenerateEventsTopicFunc() func(eventName string) string {
 	}
 }
 
-func buildQueryBus(telemetry *open_telemetry.Telemetry) query_bus.QueryBus {
-	return query_bus.NewQueryBus(*telemetry)
+func buildQueryBus(telemetry open_telemetry.TelemetryProvider) query_bus.QueryBus {
+	return query_bus.NewQueryBus(telemetry)
 }
 
 func buildRouter(logger watermill.LoggerAdapter) *message.Router {
@@ -295,10 +295,15 @@ func buildEventProcessor(
 	return eventProcessor
 }
 
-func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository, userRepository domain_repository.UserRepository) {
+func registerQueryHandlers(
+	queryBus query_bus.QueryBus,
+	postRepository domain_repository.PostRepository,
+	userRepository domain_repository.UserRepository,
+	telemetry open_telemetry.TelemetryProvider,
+) {
 	queryBus.RegisterHandler(post_query.GetPostQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(post_query.FindAllByQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(user_query.FindUserByQueryHandler{UserRepository: userRepository})
+	queryBus.RegisterHandler(user_query.FindUserByQueryHandler{UserRepository: userRepository, Telemetry: telemetry})
 }
 
 func registerCommandHandlers(

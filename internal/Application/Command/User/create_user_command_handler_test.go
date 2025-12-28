@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	entity "main/internal/Domain/Entity"
+	event "main/internal/Domain/Event"
 	"testing"
 	"time"
 
@@ -17,37 +18,39 @@ import (
 )
 
 type mockUserRepositoryCreate struct {
-	saveFunc     func(user entity.User) error
-	findByIDFunc func(id uuid.UUID) (entity.User, error)
+	saveFunc     func(ctx context.Context, user entity.User) error
+	findByIDFunc func(ctx context.Context, id uuid.UUID) (entity.User, error)
 }
 
-func (m *mockUserRepositoryCreate) Save(user entity.User) error {
+func (m *mockUserRepositoryCreate) Save(ctx context.Context, user entity.User) error {
 	if m.saveFunc != nil {
-		return m.saveFunc(user)
+		return m.saveFunc(ctx, user)
 	}
 	return nil
 }
 
-func (m *mockUserRepositoryCreate) FindByID(id uuid.UUID) (entity.User, error) {
+func (m *mockUserRepositoryCreate) FindByID(ctx context.Context, id uuid.UUID) (entity.User, error) {
 	if m.findByIDFunc != nil {
-		return m.findByIDFunc(id)
+		return m.findByIDFunc(ctx, id)
 	}
 	return entity.User{}, errors.New("not implemented")
 }
 
-func (m *mockUserRepositoryCreate) FindByProviderUserIdAndEmail(providerUserId string, userEmail string) (entity.User, error) {
+func (m *mockUserRepositoryCreate) FindByProviderUserIdAndEmail(ctx context.Context, providerUserId string, userEmail string) (entity.User, error) {
 	return entity.User{}, errors.New("not implemented")
 }
 
 type CreateUserCommandHandlerTestSuite struct {
 	suite.Suite
-	Handler        CreateUserCommandHandler
-	MockRepository *mockUserRepositoryCreate
-	EventBus       *cqrs.EventBus
+	Handler         CreateUserCommandHandler
+	MockRepository  *mockUserRepositoryCreate
+	EventBus        *cqrs.EventBus
+	PublishedEvents []any
 }
 
 func (s *CreateUserCommandHandlerTestSuite) SetupTest() {
 	s.MockRepository = &mockUserRepositoryCreate{}
+	s.PublishedEvents = make([]interface{}, 0)
 
 	db, _ := sql.Open("sqlite", ":memory:")
 	db.SetMaxOpenConns(1)
@@ -62,6 +65,10 @@ func (s *CreateUserCommandHandlerTestSuite) SetupTest() {
 	eventBus, err := cqrs.NewEventBusWithConfig(publisher, cqrs.EventBusConfig{
 		GeneratePublishTopic: func(params cqrs.GenerateEventPublishTopicParams) (string, error) {
 			return "events." + params.EventName, nil
+		},
+		OnPublish: func(params cqrs.OnEventSendParams) error {
+			s.PublishedEvents = append(s.PublishedEvents, params.Event)
+			return nil
 		},
 		Marshaler: marshaller,
 		Logger:    watermill.NopLogger{},
@@ -94,11 +101,12 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 	}
 
 	tests := []struct {
-		name          string
-		command       CreateUserCommand
-		setupMock     func()
-		expectedError bool
-		expectedSave  bool
+		name            string
+		command         CreateUserCommand
+		setupMock       func()
+		expectedError   bool
+		expectedSave    bool
+		expectedPublish bool
 	}{
 		{
 			name: "Success",
@@ -114,10 +122,10 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 				"https://example.com/avatar.jpg",
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.User, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.User, error) {
 					return entity.User{}, errors.New("user not found")
 				}
-				s.MockRepository.saveFunc = func(user entity.User) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, user entity.User) error {
 					assert.Equal(s.T(), testUserID, user.ID)
 					assert.Equal(s.T(), "test@example.com", user.Email)
 					assert.Equal(s.T(), "password123", user.Password)
@@ -130,8 +138,9 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 					return nil
 				}
 			},
-			expectedError: false,
-			expectedSave:  true,
+			expectedError:   false,
+			expectedSave:    true,
+			expectedPublish: true,
 		},
 		{
 			name: "UserAlreadyExists",
@@ -147,17 +156,18 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 				"https://example.com/avatar.jpg",
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.User, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.User, error) {
 					assert.Equal(s.T(), testUserID, id)
 					return existingUser, nil
 				}
-				s.MockRepository.saveFunc = func(user entity.User) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, user entity.User) error {
 					s.T().Error("Save should not be called when user already exists")
 					return nil
 				}
 			},
-			expectedError: false,
-			expectedSave:  false,
+			expectedError:   false,
+			expectedSave:    false,
+			expectedPublish: false,
 		},
 		{
 			name: "SaveError",
@@ -173,20 +183,22 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 				"https://example.com/avatar.jpg",
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.User, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.User, error) {
 					return entity.User{}, errors.New("user not found")
 				}
-				s.MockRepository.saveFunc = func(user entity.User) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, user entity.User) error {
 					return errors.New("database error")
 				}
 			},
-			expectedError: true,
-			expectedSave:  true,
+			expectedError:   true,
+			expectedSave:    true,
+			expectedPublish: false,
 		},
 	}
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
+			s.PublishedEvents = make([]interface{}, 0)
 			tt.setupMock()
 
 			ctx := context.Background()
@@ -196,6 +208,24 @@ func (s *CreateUserCommandHandlerTestSuite) TestHandle() {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+
+			if tt.expectedPublish {
+				assert.Greater(t, len(s.PublishedEvents), 0)
+				if len(s.PublishedEvents) > 0 {
+					publishedEvent, ok := s.PublishedEvents[0].(event.UserWasCreated)
+					assert.True(t, ok)
+					assert.Equal(t, testUserID, publishedEvent.ID)
+					assert.Equal(t, "test@example.com", publishedEvent.Email)
+					assert.Equal(t, "github", publishedEvent.Provider)
+					assert.Equal(t, "Test User", publishedEvent.Name)
+					assert.Equal(t, "Test", publishedEvent.FirstName)
+					assert.Equal(t, "User", publishedEvent.LastName)
+					assert.Equal(t, "provider123", publishedEvent.ProviderUserId)
+					assert.Equal(t, "https://example.com/avatar.jpg", publishedEvent.AvatarURL)
+				}
+			} else {
+				assert.Equal(t, 0, len(s.PublishedEvents))
 			}
 		})
 	}

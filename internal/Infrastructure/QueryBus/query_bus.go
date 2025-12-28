@@ -14,10 +14,10 @@ type QueryBus interface {
 
 type queryBus struct {
 	handlers  []QueryHandler
-	telemetry open_telemetry.Telemetry
+	telemetry open_telemetry.TelemetryProvider
 }
 
-func NewQueryBus(telemetry open_telemetry.Telemetry) QueryBus {
+func NewQueryBus(telemetry open_telemetry.TelemetryProvider) QueryBus {
 	return &queryBus{
 		handlers:  []QueryHandler{},
 		telemetry: telemetry,
@@ -25,7 +25,7 @@ func NewQueryBus(telemetry open_telemetry.Telemetry) QueryBus {
 }
 
 func (q *queryBus) Execute(ctx context.Context, query any) (any, error) {
-	_, span := q.telemetry.TraceStart(ctx, "QueryBus.Execute."+reflect.TypeOf(query).Name())
+	ctx, span := q.telemetry.TraceStart(ctx, "QueryBus.Execute."+reflect.TypeOf(query).Name())
 	defer span.End()
 
 	for _, handler := range q.handlers {

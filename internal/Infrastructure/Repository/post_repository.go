@@ -4,13 +4,15 @@ import (
 	"context"
 	entity "main/internal/Domain/Entity"
 	repository "main/internal/Domain/Repository"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type postRepository struct {
-	db *gorm.DB
+	db        *gorm.DB
+	telemetry open_telemetry.TelemetryProvider
 }
 
 func (p postRepository) Save(post entity.Post) error {
@@ -60,6 +62,6 @@ func (p postRepository) Delete(id uuid.UUID) error {
 	return p.db.Delete(&entity.Post{}, id).Error
 }
 
-func NewPostRepository(db *gorm.DB) repository.PostRepository {
-	return &postRepository{db: db}
+func NewPostRepository(db *gorm.DB, telemetry open_telemetry.TelemetryProvider) repository.PostRepository {
+	return &postRepository{db: db, telemetry: telemetry}
 }

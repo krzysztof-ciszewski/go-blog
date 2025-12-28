@@ -1,7 +1,6 @@
 package test
 
 import (
-	"context"
 	"database/sql"
 	"log/slog"
 	post_command "main/internal/Application/Command/Post"
@@ -25,7 +24,6 @@ import (
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var lock = sync.Mutex{}
@@ -36,25 +34,20 @@ func GetTestContainer() *dependency_injection.Container {
 	if container == nil {
 		lock.Lock()
 		defer lock.Unlock()
-		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
-		})
+		gormDb, err := gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{})
 		if err != nil {
 			panic(err)
 		}
 
-		telemetry, err := open_telemetry.NewTelemetry(context.Background(), *config.GetTelemetryConfig())
-		if err != nil {
-			panic(err)
-		}
+		telemetry := open_telemetry.NewNoopTelemetry(*config.GetTelemetryConfig())
 
 		pubSubDb := GetPubSubDb()
 
-		postRepository := infra_repository.NewPostRepository(gormDb)
-		userRepository := infra_repository.NewUserRepository(gormDb)
+		postRepository := infra_repository.NewPostRepository(gormDb, telemetry)
+		userRepository := infra_repository.NewUserRepository(gormDb, telemetry)
 
-		queryBus := buildQueryBus(*telemetry)
-		registerQueryHandlers(queryBus, postRepository, userRepository)
+		queryBus := buildQueryBus(telemetry)
+		registerQueryHandlers(queryBus, postRepository, userRepository, telemetry)
 
 		logger := buildWatermillLogger()
 		cqrsMarshaller := buildCqrsMarshaller()
@@ -124,7 +117,7 @@ func buildGenerateEventsTopicFunc() func(eventName string) string {
 	}
 }
 
-func buildQueryBus(telemetry open_telemetry.Telemetry) query_bus.QueryBus {
+func buildQueryBus(telemetry open_telemetry.TelemetryProvider) query_bus.QueryBus {
 	return query_bus.NewQueryBus(telemetry)
 }
 
@@ -321,10 +314,10 @@ func buildEventProcessor(
 	return eventProcessor
 }
 
-func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository, userRepository domain_repository.UserRepository) {
+func registerQueryHandlers(queryBus query_bus.QueryBus, postRepository domain_repository.PostRepository, userRepository domain_repository.UserRepository, telemetry open_telemetry.TelemetryProvider) {
 	queryBus.RegisterHandler(post_query.GetPostQueryHandler{PostRepository: postRepository})
 	queryBus.RegisterHandler(post_query.FindAllByQueryHandler{PostRepository: postRepository})
-	queryBus.RegisterHandler(user_query.FindUserByQueryHandler{UserRepository: userRepository})
+	queryBus.RegisterHandler(user_query.FindUserByQueryHandler{UserRepository: userRepository, Telemetry: telemetry})
 }
 
 func registerCommandHandlers(

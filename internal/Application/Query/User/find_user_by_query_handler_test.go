@@ -5,6 +5,8 @@ import (
 	"errors"
 	view "main/internal/Application/View"
 	entity "main/internal/Domain/Entity"
+	config "main/internal/Infrastructure/Config"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	"testing"
 	"time"
 
@@ -14,20 +16,20 @@ import (
 )
 
 type mockUserRepository struct {
-	findByProviderUserIdAndEmailFunc func(providerUserId string, userEmail string) (entity.User, error)
+	findByProviderUserIdAndEmailFunc func(ctx context.Context, providerUserId string, userEmail string) (entity.User, error)
 }
 
-func (m *mockUserRepository) Save(user entity.User) error {
+func (m *mockUserRepository) Save(ctx context.Context, user entity.User) error {
 	return nil
 }
 
-func (m *mockUserRepository) FindByID(id uuid.UUID) (entity.User, error) {
+func (m *mockUserRepository) FindByID(ctx context.Context, id uuid.UUID) (entity.User, error) {
 	return entity.User{}, nil
 }
 
-func (m *mockUserRepository) FindByProviderUserIdAndEmail(providerUserId string, userEmail string) (entity.User, error) {
+func (m *mockUserRepository) FindByProviderUserIdAndEmail(ctx context.Context, providerUserId string, userEmail string) (entity.User, error) {
 	if m.findByProviderUserIdAndEmailFunc != nil {
-		return m.findByProviderUserIdAndEmailFunc(providerUserId, userEmail)
+		return m.findByProviderUserIdAndEmailFunc(ctx, providerUserId, userEmail)
 	}
 	return entity.User{}, errors.New("not implemented")
 }
@@ -40,8 +42,14 @@ type FindUserByQueryHandlerTestSuite struct {
 
 func (s *FindUserByQueryHandlerTestSuite) SetupTest() {
 	s.MockRepository = &mockUserRepository{}
+	telemetryConfig := config.TelemetryConfig{
+		ServiceName:        "test",
+		ServiceVersion:     "1.0.0",
+		ServiceEnvironment: "test",
+	}
 	s.Handler = FindUserByQueryHandler{
 		UserRepository: s.MockRepository,
+		Telemetry:      open_telemetry.NewNoopTelemetry(telemetryConfig),
 	}
 }
 
@@ -60,7 +68,7 @@ func (s *FindUserByQueryHandlerTestSuite) TestHandle_Success() {
 		AvatarURL:      "https://example.com/avatar.jpg",
 	}
 
-	s.MockRepository.findByProviderUserIdAndEmailFunc = func(providerUserId string, userEmail string) (entity.User, error) {
+	s.MockRepository.findByProviderUserIdAndEmailFunc = func(ctx context.Context, providerUserId string, userEmail string) (entity.User, error) {
 		assert.Equal(s.T(), "testprovider123", providerUserId)
 		assert.Equal(s.T(), "test@example.com", userEmail)
 		return testUser, nil
@@ -109,7 +117,7 @@ func (s *FindUserByQueryHandlerTestSuite) TestHandle_ErrorCases() {
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			s.MockRepository.findByProviderUserIdAndEmailFunc = func(providerUserId string, userEmail string) (entity.User, error) {
+			s.MockRepository.findByProviderUserIdAndEmailFunc = func(ctx context.Context, providerUserId string, userEmail string) (entity.User, error) {
 				return entity.User{}, errors.New("user not found")
 			}
 

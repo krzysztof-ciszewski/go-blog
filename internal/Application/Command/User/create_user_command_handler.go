@@ -30,17 +30,17 @@ func (h CreateUserCommandHandler) Handle(ctx context.Context, command *CreateUse
 		command.AvatarURL,
 	)
 
-	if _, err := h.UserRepository.FindByID(command.Id); err == nil {
+	if _, err := h.UserRepository.FindByID(ctx, command.Id); err == nil {
 		return nil
 	}
 
-	err := h.UserRepository.Save(user)
+	err := h.UserRepository.Save(ctx, user)
 	if err != nil {
 		return err
 	}
 
 	return h.EventBus.Publish(
-		context.Background(),
+		ctx,
 		event.NewUserWasCreated(
 			user.ID,
 			user.Email,

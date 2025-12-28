@@ -44,7 +44,7 @@ type Telemetry struct {
 }
 
 func NewTelemetry(ctx context.Context, config config.TelemetryConfig) (*Telemetry, error) {
-	resource := newResource(config.ServiceVersion, config.ServiceVersion)
+	resource := newResource(config.ServiceName, config.ServiceVersion)
 
 	loggerProvider, err := newLoggerProvider(ctx, resource)
 	if err != nil {
@@ -152,10 +152,7 @@ func (t *Telemetry) LogRequest() gin.HandlerFunc {
 			userAgent = "-"
 		}
 
-		size := writer.Size()
-		if size < 0 {
-			size = 0
-		}
+		size := max(writer.Size(), 0)
 
 		logLine := fmt.Sprintf("%s - %s [%s] \"%s %s %s\" %d %d \"%s\" \"%s\"",
 			remoteAddr,

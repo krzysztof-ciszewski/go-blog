@@ -4,12 +4,14 @@ import (
 	"context"
 	view "main/internal/Application/View"
 	repository "main/internal/Domain/Repository"
+	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 
 	"github.com/google/uuid"
 )
 
 type FindUserByQueryHandler struct {
 	UserRepository repository.UserRepository
+	Telemetry      open_telemetry.TelemetryProvider
 }
 
 func (h FindUserByQueryHandler) Handle(ctx context.Context, query any) (any, error) {
@@ -18,11 +20,13 @@ func (h FindUserByQueryHandler) Handle(ctx context.Context, query any) (any, err
 		return view.UserView{}, nil
 	}
 
-	userEntity, err := h.UserRepository.FindByProviderUserIdAndEmail(findUserQuery.Filters.ProviderUserId, findUserQuery.Filters.UserEmail)
+	userEntity, err := h.UserRepository.FindByProviderUserIdAndEmail(ctx, findUserQuery.Filters.ProviderUserId, findUserQuery.Filters.UserEmail)
 	if err != nil {
 		return view.UserView{}, err
 	}
 
+	_, span := h.Telemetry.TraceStart(ctx, "FindUserByQueryHandler.CreateView")
+	defer span.End()
 	return view.NewUserView(
 		uuid.MustParse(userEntity.ID.String()),
 		userEntity.Email,

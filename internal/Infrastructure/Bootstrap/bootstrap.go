@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"context"
 	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	auth "main/internal/UserInterface/Api/Handler/Auth"
 	post "main/internal/UserInterface/Api/Handler/Post"
@@ -18,8 +17,6 @@ import (
 )
 
 func BootstrapGin(container dependency_injection.Container) *gin.Engine {
-	_, span := container.Telemetry.TraceStart(context.Background(), "BootstrapGin")
-	defer span.End()
 	r := gin.Default()
 
 	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))

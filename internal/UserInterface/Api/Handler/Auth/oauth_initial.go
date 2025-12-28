@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	query "main/internal/Application/Query/User"
 	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	query_bus "main/internal/Infrastructure/QueryBus"
@@ -13,7 +12,7 @@ import (
 )
 
 func OauthInitial(ctx *gin.Context, queryBus query_bus.QueryBus, telemetry open_telemetry.Telemetry) {
-	_, span := telemetry.TraceStart(ctx.Request.Context(), "OauthInitial")
+	spanCtx, span := telemetry.TraceStart(ctx.Request.Context(), "OauthInitial")
 	defer span.End()
 
 	q := ctx.Request.URL.Query()
@@ -35,7 +34,7 @@ func OauthInitial(ctx *gin.Context, queryBus query_bus.QueryBus, telemetry open_
 	}
 
 	user, err := queryBus.Execute(
-		context.Background(),
+		spanCtx,
 		query.NewFindUserByQuery(
 			providerUserId.(string),
 			email.(string),

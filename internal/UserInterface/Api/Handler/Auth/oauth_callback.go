@@ -15,8 +15,13 @@ import (
 	"github.com/markbates/goth/gothic"
 )
 
-func OauthCallback(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bus.QueryBus, telemetry open_telemetry.Telemetry) {
-	_, span := telemetry.TraceStart(ctx.Request.Context(), "OauthCallback")
+func OauthCallback(
+	ctx *gin.Context,
+	commandBus *cqrs.CommandBus,
+	queryBus query_bus.QueryBus,
+	telemetry open_telemetry.Telemetry,
+) {
+	spanCtx, span := telemetry.TraceStart(ctx.Request.Context(), "OauthCallback")
 	defer span.End()
 
 	q := ctx.Request.URL.Query()
@@ -53,7 +58,7 @@ func OauthCallback(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query
 	}
 
 	user, err := queryBus.Execute(
-		context.Background(),
+		spanCtx,
 		query.NewFindUserByQuery(
 			gothUser.UserID,
 			gothUser.Email,
