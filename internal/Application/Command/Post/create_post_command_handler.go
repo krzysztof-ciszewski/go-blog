@@ -26,11 +26,11 @@ func (h CreatePostCommandHandler) Handle(ctx context.Context, command *createPos
 		command.Author,
 	)
 
-	if _, err := h.PostRepository.FindByID(command.Id); err == nil {
+	if _, err := h.PostRepository.FindByID(ctx, command.Id); err == nil {
 		return nil
 	}
 
-	err := h.PostRepository.Save(post)
+	err := h.PostRepository.Save(ctx, post)
 	if err != nil {
 		return err
 	}

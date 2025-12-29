@@ -16,7 +16,7 @@ type UpdatePostCommandHandler struct {
 }
 
 func (h UpdatePostCommandHandler) Handle(ctx context.Context, command *updatePostCommand) error {
-	existingPost, err := h.PostRepository.FindByID(command.Id)
+	existingPost, err := h.PostRepository.FindByID(ctx, command.Id)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (h UpdatePostCommandHandler) Handle(ctx context.Context, command *updatePos
 		existingPost.AuthorId,
 	)
 
-	err = h.PostRepository.Update(updatedPost)
+	err = h.PostRepository.Update(ctx, updatedPost)
 	if err != nil {
 		return err
 	}

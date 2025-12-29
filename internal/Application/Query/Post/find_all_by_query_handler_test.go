@@ -15,29 +15,29 @@ import (
 )
 
 type mockPostRepositoryForFindAll struct {
-	findAllByFunc func(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error)
+	findAllByFunc func(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error)
 }
 
-func (m *mockPostRepositoryForFindAll) Save(post entity.Post) error {
+func (m *mockPostRepositoryForFindAll) Save(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepositoryForFindAll) Update(post entity.Post) error {
+func (m *mockPostRepositoryForFindAll) Update(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepositoryForFindAll) FindByID(id uuid.UUID) (entity.Post, error) {
+func (m *mockPostRepositoryForFindAll) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 	return entity.Post{}, nil
 }
 
-func (m *mockPostRepositoryForFindAll) FindAllBy(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+func (m *mockPostRepositoryForFindAll) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 	if m.findAllByFunc != nil {
-		return m.findAllByFunc(page, pageSize, slug, text, author)
+		return m.findAllByFunc(ctx, page, pageSize, slug, text, author)
 	}
 	return repository.PaginatedResult[entity.Post]{}, errors.New("not implemented")
 }
 
-func (m *mockPostRepositoryForFindAll) Delete(id uuid.UUID) error {
+func (m *mockPostRepositoryForFindAll) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (s *FindAllByQueryHandlerTestSuite) TestHandle() {
 						AuthorId:  testAuthorID,
 					},
 				}
-				s.MockRepository.findAllByFunc = func(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+				s.MockRepository.findAllByFunc = func(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 					assert.Equal(s.T(), 1, page)
 					assert.Equal(s.T(), 10, pageSize)
 					assert.Equal(s.T(), "", slug)
@@ -136,7 +136,7 @@ func (s *FindAllByQueryHandlerTestSuite) TestHandle() {
 						AuthorId:  testAuthorID,
 					},
 				}
-				s.MockRepository.findAllByFunc = func(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+				s.MockRepository.findAllByFunc = func(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 					assert.Equal(s.T(), 2, page)
 					assert.Equal(s.T(), 20, pageSize)
 					assert.Equal(s.T(), "test-slug", slug)
@@ -164,7 +164,7 @@ func (s *FindAllByQueryHandlerTestSuite) TestHandle() {
 			name:  "EmptyResult",
 			query: NewFindAllByQuery(1, 10, "", "", ""),
 			setupMock: func() {
-				s.MockRepository.findAllByFunc = func(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+				s.MockRepository.findAllByFunc = func(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 					return repository.PaginatedResult[entity.Post]{
 						Items:    []entity.Post{},
 						Total:    0,
@@ -185,7 +185,7 @@ func (s *FindAllByQueryHandlerTestSuite) TestHandle() {
 			name:  "RepositoryError",
 			query: NewFindAllByQuery(1, 10, "", "", ""),
 			setupMock: func() {
-				s.MockRepository.findAllByFunc = func(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+				s.MockRepository.findAllByFunc = func(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 					return repository.PaginatedResult[entity.Post]{}, errors.New("database error")
 				}
 			},

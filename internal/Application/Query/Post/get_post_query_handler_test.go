@@ -15,29 +15,29 @@ import (
 )
 
 type mockPostRepository struct {
-	findByIDFunc func(id uuid.UUID) (entity.Post, error)
+	findByIDFunc func(ctx context.Context, id uuid.UUID) (entity.Post, error)
 }
 
-func (m *mockPostRepository) Save(post entity.Post) error {
+func (m *mockPostRepository) Save(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepository) Update(post entity.Post) error {
+func (m *mockPostRepository) Update(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepository) FindByID(id uuid.UUID) (entity.Post, error) {
+func (m *mockPostRepository) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 	if m.findByIDFunc != nil {
-		return m.findByIDFunc(id)
+		return m.findByIDFunc(ctx, id)
 	}
 	return entity.Post{}, errors.New("not implemented")
 }
 
-func (m *mockPostRepository) FindAllBy(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+func (m *mockPostRepository) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 	return repository.PaginatedResult[entity.Post]{}, nil
 }
 
-func (m *mockPostRepository) Delete(id uuid.UUID) error {
+func (m *mockPostRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (s *GetPostQueryHandlerTestSuite) TestHandle() {
 			name:  "Success",
 			query: NewGetPostQuery(testPostID),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					assert.Equal(s.T(), testPostID, id)
 					return testPost, nil
 				}
@@ -98,7 +98,7 @@ func (s *GetPostQueryHandlerTestSuite) TestHandle() {
 			name:  "PostNotFound",
 			query: NewGetPostQuery(testPostID),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					return entity.Post{}, errors.New("post not found")
 				}
 			},

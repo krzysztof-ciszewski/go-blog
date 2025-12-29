@@ -14,12 +14,12 @@ type DeletePostCommandHandler struct {
 }
 
 func (h DeletePostCommandHandler) Handle(ctx context.Context, command *deletePostCommand) error {
-	post, err := h.PostRepository.FindByID(command.Id)
+	post, err := h.PostRepository.FindByID(ctx, command.Id)
 	if err != nil {
 		return err
 	}
 
-	err = h.PostRepository.Delete(command.Id)
+	err = h.PostRepository.Delete(ctx, command.Id)
 	if err != nil {
 		return err
 	}

@@ -19,32 +19,32 @@ import (
 )
 
 type mockPostRepositoryDelete struct {
-	deleteFunc   func(id uuid.UUID) error
-	findByIDFunc func(id uuid.UUID) (entity.Post, error)
+	deleteFunc   func(ctx context.Context, id uuid.UUID) error
+	findByIDFunc func(ctx context.Context, id uuid.UUID) (entity.Post, error)
 }
 
-func (m *mockPostRepositoryDelete) Save(post entity.Post) error {
+func (m *mockPostRepositoryDelete) Save(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepositoryDelete) Update(post entity.Post) error {
+func (m *mockPostRepositoryDelete) Update(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepositoryDelete) FindByID(id uuid.UUID) (entity.Post, error) {
+func (m *mockPostRepositoryDelete) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 	if m.findByIDFunc != nil {
-		return m.findByIDFunc(id)
+		return m.findByIDFunc(ctx, id)
 	}
 	return entity.Post{}, errors.New("not implemented")
 }
 
-func (m *mockPostRepositoryDelete) FindAllBy(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+func (m *mockPostRepositoryDelete) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 	return repository.PaginatedResult[entity.Post]{}, nil
 }
 
-func (m *mockPostRepositoryDelete) Delete(id uuid.UUID) error {
+func (m *mockPostRepositoryDelete) Delete(ctx context.Context, id uuid.UUID) error {
 	if m.deleteFunc != nil {
-		return m.deleteFunc(id)
+		return m.deleteFunc(ctx, id)
 	}
 	return nil
 }
@@ -118,11 +118,11 @@ func (s *DeletePostCommandHandlerTestSuite) TestHandle() {
 			name:    "Success",
 			command: NewDeletePostCommand(testPostID),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					assert.Equal(s.T(), testPostID, id)
 					return existingPost, nil
 				}
-				s.MockRepository.deleteFunc = func(id uuid.UUID) error {
+				s.MockRepository.deleteFunc = func(ctx context.Context, id uuid.UUID) error {
 					assert.Equal(s.T(), testPostID, id)
 					return nil
 				}
@@ -135,11 +135,11 @@ func (s *DeletePostCommandHandlerTestSuite) TestHandle() {
 			name:    "DeleteError",
 			command: NewDeletePostCommand(testPostID),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					assert.Equal(s.T(), testPostID, id)
 					return existingPost, nil
 				}
-				s.MockRepository.deleteFunc = func(id uuid.UUID) error {
+				s.MockRepository.deleteFunc = func(ctx context.Context, id uuid.UUID) error {
 					assert.Equal(s.T(), testPostID, id)
 					return errors.New("database error")
 				}
@@ -152,11 +152,11 @@ func (s *DeletePostCommandHandlerTestSuite) TestHandle() {
 			name:    "PostNotFound",
 			command: NewDeletePostCommand(testPostID),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					assert.Equal(s.T(), testPostID, id)
 					return entity.Post{}, errors.New("post not found")
 				}
-				s.MockRepository.deleteFunc = func(id uuid.UUID) error {
+				s.MockRepository.deleteFunc = func(ctx context.Context, id uuid.UUID) error {
 					s.T().Error("Delete should not be called when post is not found")
 					return nil
 				}

@@ -19,33 +19,33 @@ import (
 )
 
 type mockPostRepositoryCreate struct {
-	saveFunc     func(post entity.Post) error
-	findByIDFunc func(id uuid.UUID) (entity.Post, error)
+	saveFunc     func(ctx context.Context, post entity.Post) error
+	findByIDFunc func(ctx context.Context, id uuid.UUID) (entity.Post, error)
 }
 
-func (m *mockPostRepositoryCreate) Save(post entity.Post) error {
+func (m *mockPostRepositoryCreate) Save(ctx context.Context, post entity.Post) error {
 	if m.saveFunc != nil {
-		return m.saveFunc(post)
+		return m.saveFunc(ctx, post)
 	}
 	return nil
 }
 
-func (m *mockPostRepositoryCreate) Update(post entity.Post) error {
+func (m *mockPostRepositoryCreate) Update(ctx context.Context, post entity.Post) error {
 	return nil
 }
 
-func (m *mockPostRepositoryCreate) FindByID(id uuid.UUID) (entity.Post, error) {
+func (m *mockPostRepositoryCreate) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 	if m.findByIDFunc != nil {
-		return m.findByIDFunc(id)
+		return m.findByIDFunc(ctx, id)
 	}
 	return entity.Post{}, errors.New("not implemented")
 }
 
-func (m *mockPostRepositoryCreate) FindAllBy(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+func (m *mockPostRepositoryCreate) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
 	return repository.PaginatedResult[entity.Post]{}, nil
 }
 
-func (m *mockPostRepositoryCreate) Delete(id uuid.UUID) error {
+func (m *mockPostRepositoryCreate) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
@@ -125,10 +125,10 @@ func (s *CreatePostCommandHandlerTestSuite) TestHandle() {
 				testAuthorID,
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					return entity.Post{}, errors.New("post not found")
 				}
-				s.MockRepository.saveFunc = func(post entity.Post) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, post entity.Post) error {
 					assert.Equal(s.T(), testPostID, post.ID)
 					assert.Equal(s.T(), "test-slug", post.Slug)
 					assert.Equal(s.T(), "Test Title", post.Title)
@@ -152,11 +152,11 @@ func (s *CreatePostCommandHandlerTestSuite) TestHandle() {
 				testAuthorID,
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					assert.Equal(s.T(), testPostID, id)
 					return existingPost, nil
 				}
-				s.MockRepository.saveFunc = func(post entity.Post) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, post entity.Post) error {
 					s.T().Error("Save should not be called when post already exists")
 					return nil
 				}
@@ -175,10 +175,10 @@ func (s *CreatePostCommandHandlerTestSuite) TestHandle() {
 				testAuthorID,
 			),
 			setupMock: func() {
-				s.MockRepository.findByIDFunc = func(id uuid.UUID) (entity.Post, error) {
+				s.MockRepository.findByIDFunc = func(ctx context.Context, id uuid.UUID) (entity.Post, error) {
 					return entity.Post{}, errors.New("post not found")
 				}
-				s.MockRepository.saveFunc = func(post entity.Post) error {
+				s.MockRepository.saveFunc = func(ctx context.Context, post entity.Post) error {
 					return errors.New("database error")
 				}
 			},

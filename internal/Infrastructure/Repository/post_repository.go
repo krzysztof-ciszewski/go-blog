@@ -15,11 +15,17 @@ type postRepository struct {
 	telemetry open_telemetry.TelemetryProvider
 }
 
-func (p postRepository) Save(post entity.Post) error {
+func (p postRepository) Save(ctx context.Context, post entity.Post) error {
+	_, span := p.telemetry.TraceStart(ctx, "postRepository.Save")
+	defer span.End()
+
 	return p.db.Create(&post).Error
 }
 
-func (p postRepository) Update(post entity.Post) error {
+func (p postRepository) Update(ctx context.Context, post entity.Post) error {
+	_, span := p.telemetry.TraceStart(ctx, "postRepository.Update")
+	defer span.End()
+
 	return p.db.Model(&post).Where("id = ?", post.ID).Updates(map[string]interface{}{
 		"slug":       post.Slug,
 		"title":      post.Title,
@@ -28,11 +34,17 @@ func (p postRepository) Update(post entity.Post) error {
 	}).Error
 }
 
-func (p postRepository) FindByID(id uuid.UUID) (entity.Post, error) {
-	return gorm.G[entity.Post](p.db).Where("id = ?", id).First(context.Background())
+func (p postRepository) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
+	_, span := p.telemetry.TraceStart(ctx, "postRepository.FindByID")
+	defer span.End()
+
+	return gorm.G[entity.Post](p.db).Where("id = ?", id).First(ctx)
 }
 
-func (p postRepository) FindAllBy(page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+func (p postRepository) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
+	_, span := p.telemetry.TraceStart(ctx, "postRepository.FindAllBy")
+	defer span.End()
+
 	var total int64
 	tx := p.db.Model(&entity.Post{})
 	if slug != "" {
@@ -58,7 +70,10 @@ func (p postRepository) FindAllBy(page int, pageSize int, slug string, text stri
 	return repository.PaginatedResult[entity.Post]{Items: posts, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-func (p postRepository) Delete(id uuid.UUID) error {
+func (p postRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, span := p.telemetry.TraceStart(ctx, "postRepository.Delete")
+	defer span.End()
+
 	return p.db.Delete(&entity.Post{}, id).Error
 }
 

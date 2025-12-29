@@ -19,6 +19,7 @@ func (h FindAllByQueryHandler) Handle(ctx context.Context, query any) (any, erro
 	}
 
 	paginatedResult, err := h.PostRepository.FindAllBy(
+		ctx,
 		findAllByQuery.Filters.PaginationFilters.Page,
 		findAllByQuery.Filters.PaginationFilters.PageSize,
 		findAllByQuery.Filters.Slug,
