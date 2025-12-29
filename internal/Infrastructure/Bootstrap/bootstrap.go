@@ -14,6 +14,7 @@ import (
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func BootstrapGin(container dependency_injection.Container) *gin.Engine {
@@ -29,6 +30,7 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 
 	gothic.Store = store
 
+	r.Use(otelgin.Middleware(container.Telemetry.GetServiceName()))
 	r.Use(container.Telemetry.LogRequest())
 	r.Use(container.Telemetry.MeterRequestDuration())
 	r.Use(container.Telemetry.MeterRequestsInFlught())

@@ -4,29 +4,21 @@ import (
 	"context"
 	entity "main/internal/Domain/Entity"
 	repository "main/internal/Domain/Repository"
-	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type postRepository struct {
-	db        *gorm.DB
-	telemetry open_telemetry.TelemetryProvider
+	db *gorm.DB
 }
 
 func (p postRepository) Save(ctx context.Context, post entity.Post) error {
-	_, span := p.telemetry.TraceStart(ctx, "postRepository.Save")
-	defer span.End()
-
-	return p.db.Create(&post).Error
+	return p.db.WithContext(ctx).Create(&post).Error
 }
 
 func (p postRepository) Update(ctx context.Context, post entity.Post) error {
-	_, span := p.telemetry.TraceStart(ctx, "postRepository.Update")
-	defer span.End()
-
-	return p.db.Model(&post).Where("id = ?", post.ID).Updates(map[string]interface{}{
+	return p.db.WithContext(ctx).Model(&post).Where("id = ?", post.ID).Updates(map[string]interface{}{
 		"slug":       post.Slug,
 		"title":      post.Title,
 		"content":    post.Content,
@@ -35,18 +27,12 @@ func (p postRepository) Update(ctx context.Context, post entity.Post) error {
 }
 
 func (p postRepository) FindByID(ctx context.Context, id uuid.UUID) (entity.Post, error) {
-	_, span := p.telemetry.TraceStart(ctx, "postRepository.FindByID")
-	defer span.End()
-
 	return gorm.G[entity.Post](p.db).Where("id = ?", id).First(ctx)
 }
 
 func (p postRepository) FindAllBy(ctx context.Context, page int, pageSize int, slug string, text string, author string) (repository.PaginatedResult[entity.Post], error) {
-	_, span := p.telemetry.TraceStart(ctx, "postRepository.FindAllBy")
-	defer span.End()
-
 	var total int64
-	tx := p.db.Model(&entity.Post{})
+	tx := p.db.WithContext(ctx).Model(&entity.Post{})
 	if slug != "" {
 		tx = tx.Where("slug LIKE ?", "%"+slug+"%")
 	}
@@ -71,12 +57,9 @@ func (p postRepository) FindAllBy(ctx context.Context, page int, pageSize int, s
 }
 
 func (p postRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	_, span := p.telemetry.TraceStart(ctx, "postRepository.Delete")
-	defer span.End()
-
-	return p.db.Delete(&entity.Post{}, id).Error
+	return p.db.WithContext(ctx).Delete(&entity.Post{}, id).Error
 }
 
-func NewPostRepository(db *gorm.DB, telemetry open_telemetry.TelemetryProvider) repository.PostRepository {
-	return &postRepository{db: db, telemetry: telemetry}
+func NewPostRepository(db *gorm.DB) repository.PostRepository {
+	return &postRepository{db: db}
 }

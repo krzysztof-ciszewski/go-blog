@@ -106,7 +106,7 @@ blog/
 
 2. **Start all services:**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
    This will start:
@@ -120,18 +120,31 @@ blog/
 
 3. **Check service status:**
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 4. **View logs:**
    ```bash
-   docker-compose logs -f server
-   docker-compose logs -f consume
+   docker compose logs -f server
+   docker compose logs -f consume
    ```
 
 5. **Access RabbitMQ Management UI:**
    - URL: `http://localhost:15672`
    - Default credentials: `guest` / `guest`
+
+### Observability (Optional)
+
+This repo includes an optional local OpenTelemetry “LGTM” stack (Grafana + Tempo + Loki + Mimir) via the `otel-lgtm` service in `docker-compose.yaml`.
+
+Start it with:
+
+```bash
+docker compose up -d otel-lgtm
+```
+
+Then access:
+- Grafana: `http://localhost:3000`
 
 ### Manual Setup
 
@@ -142,7 +155,7 @@ blog/
 
 2. **Start dependencies:**
    ```bash
-   docker-compose up -d postgres rabbitmq
+   docker compose up -d postgres rabbitmq
    ```
 
    Or install and run PostgreSQL and RabbitMQ manually.
@@ -268,7 +281,7 @@ The application uses a **custom topology builder** to configure RabbitMQ dead le
 Run tests in an isolated Docker container with all dependencies:
 
 ```bash
-docker-compose --profile test up test
+docker compose build test; docker compose run --remove-orphans test
 ```
 
 This will:
@@ -281,7 +294,7 @@ This will:
 
 1. **Start dependencies:**
    ```bash
-   docker-compose up -d postgres rabbitmq
+   docker compose up -d postgres rabbitmq
    ```
 
 2. **Run database migrations:**
@@ -401,19 +414,19 @@ The `docker-compose.yaml` file defines the following services:
 ## Stopping Services
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 To remove volumes (database data):
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 To stop services including test profile:
 
 ```bash
-docker-compose --profile test down
+docker compose --profile test down
 ```
 
 ## Troubleshooting
@@ -422,8 +435,8 @@ docker-compose --profile test down
 
 If the consumer can't connect to RabbitMQ:
 
-1. Verify RabbitMQ is running: `docker-compose ps rabbitmq`
-2. Check RabbitMQ logs: `docker-compose logs rabbitmq`
+1. Verify RabbitMQ is running: `docker compose ps rabbitmq`
+2. Check RabbitMQ logs: `docker compose logs rabbitmq`
 3. Ensure `AMQP_URL` environment variable is correct
 4. Access RabbitMQ Management UI at `http://localhost:15672` (default: guest/guest) to inspect queues and messages
 
@@ -446,13 +459,13 @@ To inspect failed messages:
 
 ### Database Connection Issues
 
-1. Verify PostgreSQL is running: `docker-compose ps postgres`
-2. Check database logs: `docker-compose logs postgres`
+1. Verify PostgreSQL is running: `docker compose ps postgres`
+2. Check database logs: `docker compose logs postgres`
 3. Verify `DATABASE_URL` environment variable
 
 ### Migration Issues
 
-1. Check migration logs: `docker-compose logs migrate`
+1. Check migration logs: `docker compose logs migrate`
 2. Ensure migrations are in `db/migrations/` directory
 3. Verify migration file naming convention
 

@@ -1,7 +1,6 @@
 package post
 
 import (
-	"context"
 	post_command "main/internal/Application/Command/Post"
 	post_query "main/internal/Application/Query/Post"
 	user_query "main/internal/Application/Query/User"
@@ -47,7 +46,7 @@ func UpdatePost(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bu
 	}
 
 	user, err := queryBus.Execute(
-		context.Background(),
+		ctx.Request.Context(),
 		user_query.NewFindUserByQuery(providerUserId.(string), email.(string)),
 	)
 
@@ -62,7 +61,7 @@ func UpdatePost(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bu
 	}
 
 	post, err := queryBus.Execute(
-		context.Background(),
+		ctx.Request.Context(),
 		post_query.NewGetPostQuery(postId),
 	)
 
@@ -95,7 +94,7 @@ func UpdatePost(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bu
 		req.Content,
 	)
 
-	commandBus.Send(context.Background(), command)
+	commandBus.Send(ctx.Request.Context(), command)
 
 	ctx.JSON(http.StatusAccepted, gin.H{"message": "Post updated"})
 }

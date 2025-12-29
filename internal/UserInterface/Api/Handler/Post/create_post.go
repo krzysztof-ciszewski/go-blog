@@ -1,7 +1,6 @@
 package post
 
 import (
-	"context"
 	post_command "main/internal/Application/Command/Post"
 	user_query "main/internal/Application/Query/User"
 	view "main/internal/Application/View"
@@ -40,7 +39,7 @@ func CreatePost(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bu
 	}
 
 	user, err := queryBus.Execute(
-		context.Background(),
+		ctx.Request.Context(),
 		user_query.NewFindUserByQuery(providerUserId.(string), email.(string)),
 	)
 
@@ -62,7 +61,7 @@ func CreatePost(ctx *gin.Context, commandBus *cqrs.CommandBus, queryBus query_bu
 		user.(view.UserView).Id,
 	)
 
-	commandBus.Send(context.Background(), command)
+	commandBus.Send(ctx.Request.Context(), command)
 
 	ctx.JSON(http.StatusAccepted, gin.H{"message": "Post created"})
 }

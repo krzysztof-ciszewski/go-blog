@@ -36,7 +36,7 @@ func (h CreatePostCommandHandler) Handle(ctx context.Context, command *createPos
 	}
 
 	return h.EventBus.Publish(
-		context.Background(),
+		ctx,
 		event.NewPostWasCreated(
 			post.ID,
 			post.CreatedAt,

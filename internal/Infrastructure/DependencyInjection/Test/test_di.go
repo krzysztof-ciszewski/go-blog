@@ -43,8 +43,8 @@ func GetTestContainer() *dependency_injection.Container {
 
 		pubSubDb := GetPubSubDb()
 
-		postRepository := infra_repository.NewPostRepository(gormDb, telemetry)
-		userRepository := infra_repository.NewUserRepository(gormDb, telemetry)
+		postRepository := infra_repository.NewPostRepository(gormDb)
+		userRepository := infra_repository.NewUserRepository(gormDb)
 
 		queryBus := buildQueryBus(telemetry)
 		registerQueryHandlers(queryBus, postRepository, userRepository, telemetry)

@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	command "main/internal/Application/Command/User"
 	query "main/internal/Application/Query/User"
 	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
@@ -21,9 +20,6 @@ func OauthCallback(
 	queryBus query_bus.QueryBus,
 	telemetry open_telemetry.Telemetry,
 ) {
-	spanCtx, span := telemetry.TraceStart(ctx.Request.Context(), "OauthCallback")
-	defer span.End()
-
 	q := ctx.Request.URL.Query()
 	q.Add("provider", ctx.Param("provider"))
 	ctx.Request.URL.RawQuery = q.Encode()
@@ -58,7 +54,7 @@ func OauthCallback(
 	}
 
 	user, err := queryBus.Execute(
-		spanCtx,
+		ctx.Request.Context(),
 		query.NewFindUserByQuery(
 			gothUser.UserID,
 			gothUser.Email,
@@ -79,7 +75,7 @@ func OauthCallback(
 		return
 	}
 
-	commandBus.Send(context.Background(), command.NewCreateUserCommand(
+	commandBus.Send(ctx.Request.Context(), command.NewCreateUserCommand(
 		id,
 		gothUser.Email,
 		"",

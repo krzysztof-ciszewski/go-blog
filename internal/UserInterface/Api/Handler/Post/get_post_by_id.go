@@ -1,7 +1,6 @@
 package post
 
 import (
-	"context"
 	post_query "main/internal/Application/Query/Post"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
@@ -20,7 +19,7 @@ func GetPostById(ctx *gin.Context, queryBus query_bus.QueryBus) {
 	}
 
 	q := post_query.NewGetPostQuery(parsedUUID)
-	post, err := queryBus.Execute(context.Background(), q)
+	post, err := queryBus.Execute(ctx.Request.Context(), q)
 
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

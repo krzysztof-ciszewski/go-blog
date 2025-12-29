@@ -1,7 +1,6 @@
 package post
 
 import (
-	"context"
 	post_query "main/internal/Application/Query/Post"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	"net/http"
@@ -33,7 +32,7 @@ func ListPosts(ctx *gin.Context, queryBus query_bus.QueryBus) {
 	}
 
 	q := post_query.NewFindAllByQuery(pageInt, pageSizeInt, slug, text, author)
-	result, err = queryBus.Execute(context.Background(), q)
+	result, err = queryBus.Execute(ctx.Request.Context(), q)
 
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

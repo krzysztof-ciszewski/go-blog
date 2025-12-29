@@ -21,9 +21,12 @@ import (
 	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
+	wotelfloss "github.com/dentech-floss/watermill-opentelemetry-go-extra/pkg/opentelemetry"
 	_ "github.com/lib/pq"
+	wotel "github.com/voi-oss/watermill-opentelemetry/pkg/opentelemetry"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 type Container struct {
@@ -49,14 +52,15 @@ func GetContainer() *Container {
 		if err != nil {
 			panic(err)
 		}
+		gormDb.Use(tracing.NewPlugin())
 
 		telemetry, err := open_telemetry.NewTelemetry(context.Background(), *config.GetTelemetryConfig())
 		if err != nil {
 			panic(err)
 		}
 
-		postRepository := infra_repository.NewPostRepository(gormDb, telemetry)
-		userRepository := infra_repository.NewUserRepository(gormDb, telemetry)
+		postRepository := infra_repository.NewPostRepository(gormDb)
+		userRepository := infra_repository.NewUserRepository(gormDb)
 
 		queryBus := buildQueryBus(telemetry)
 		registerQueryHandlers(queryBus, postRepository, userRepository, telemetry)
@@ -112,6 +116,9 @@ func buildRouter(logger watermill.LoggerAdapter) *message.Router {
 		panic(err)
 	}
 
+	router.AddMiddleware(wotelfloss.ExtractRemoteParentSpanContext())
+	router.AddMiddleware(wotel.Trace())
+
 	return router
 }
 
@@ -141,7 +148,9 @@ func buildPublisher(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) mes
 		panic(err)
 	}
 
-	return publisher
+	tracePropagatingPublisher := wotelfloss.NewTracePropagatingPublisherDecorator(publisher)
+
+	return wotel.NewPublisherDecorator(tracePropagatingPublisher)
 }
 
 func buildSubscriber(amqpConfig *amqp.Config, logger watermill.LoggerAdapter) message.Subscriber {

@@ -25,7 +25,7 @@ func (h DeletePostCommandHandler) Handle(ctx context.Context, command *deletePos
 	}
 
 	return h.EventBus.Publish(
-		context.Background(),
+		ctx,
 		event.NewPostWasDeleted(
 			post.ID,
 			post.CreatedAt,
