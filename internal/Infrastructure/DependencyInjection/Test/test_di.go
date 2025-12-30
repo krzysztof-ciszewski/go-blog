@@ -21,7 +21,8 @@ import (
 	"github.com/ThreeDotsLabs/watermill-sqlite/wmsqlitemodernc"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
-	_ "github.com/lib/pq"
+	"github.com/boj/redistore"
+	"github.com/markbates/goth/gothic"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -71,9 +72,27 @@ func GetTestContainer() *dependency_injection.Container {
 			Router:           router,
 			CommandProcessor: commandProcessor,
 			EventProcessor:   eventProcessor,
+			SessionStore:     buildSessionStore(),
 		}
 	}
 	return container
+}
+
+func buildSessionStore() *redistore.RediStore {
+	sessionStore, err := redistore.NewRediStore(
+		10,
+		"tcp",
+		os.Getenv("REDIS_URL"),
+		os.Getenv("REDIS_USERNAME"),
+		os.Getenv("REDIS_PASSWORD"),
+		[]byte(os.Getenv("SESSION_SECRET")),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	gothic.Store = sessionStore
+	return sessionStore
 }
 
 var pubSubDb *sql.DB

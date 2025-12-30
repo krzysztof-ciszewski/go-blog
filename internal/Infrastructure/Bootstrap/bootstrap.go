@@ -5,30 +5,16 @@ import (
 	auth "main/internal/UserInterface/Api/Handler/Auth"
 	post "main/internal/UserInterface/Api/Handler/Post"
 	middleware "main/internal/UserInterface/Api/Middleware"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
-	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 	r := gin.Default()
-
-	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
-
-	store.MaxAge(int(12 * time.Hour / time.Second))
-	store.Options.Path = "/"
-	store.Options.HttpOnly = true
-	store.Options.Secure = false
-	store.Options.SameSite = http.SameSiteLaxMode
-
-	gothic.Store = store
 
 	r.Use(otelgin.Middleware(container.Telemetry.GetServiceName()))
 	r.Use(container.Telemetry.LogRequest())

@@ -13,6 +13,7 @@ import (
 	open_telemetry "main/internal/Infrastructure/OpenTelemetry"
 	query_bus "main/internal/Infrastructure/QueryBus"
 	infra_repository "main/internal/Infrastructure/Repository"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -21,8 +22,9 @@ import (
 	"github.com/ThreeDotsLabs/watermill-amqp/v3/pkg/amqp"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/boj/redistore"
 	wotelfloss "github.com/dentech-floss/watermill-opentelemetry-go-extra/pkg/opentelemetry"
-	_ "github.com/lib/pq"
+	"github.com/markbates/goth/gothic"
 	wotel "github.com/voi-oss/watermill-opentelemetry/pkg/opentelemetry"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -38,6 +40,7 @@ type Container struct {
 	Router           *message.Router
 	CommandProcessor *cqrs.CommandProcessor
 	EventProcessor   *cqrs.EventProcessor
+	SessionStore     *redistore.RediStore
 }
 
 var lock = sync.Mutex{}
@@ -89,9 +92,33 @@ func GetContainer() *Container {
 			Router:           router,
 			CommandProcessor: commandProcessor,
 			EventProcessor:   eventProcessor,
+			SessionStore:     buildSessionStore(),
 		}
 	}
 	return container
+}
+
+func buildSessionStore() *redistore.RediStore {
+	sessionStore, err := redistore.NewRediStore(
+		10,
+		"tcp",
+		os.Getenv("REDIS_URL"),
+		os.Getenv("REDIS_USERNAME"),
+		os.Getenv("REDIS_PASSWORD"),
+		[]byte(os.Getenv("SESSION_SECRET")),
+	)
+	if err != nil {
+		panic(err)
+	}
+	sessionStore.Options.MaxAge = int(12 * time.Hour / time.Second)
+	sessionStore.Options.Path = "/"
+	sessionStore.Options.HttpOnly = true
+	sessionStore.Options.Secure = false
+	sessionStore.Options.SameSite = http.SameSiteLaxMode
+
+	gothic.Store = sessionStore
+
+	return sessionStore
 }
 
 func buildGenerateCommandsTopicFunc() func(commandName string) string {
