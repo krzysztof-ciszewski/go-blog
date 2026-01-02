@@ -22,6 +22,7 @@ func TestBootstrapGin(t *testing.T) {
 		{"GET", "/auth/:provider/callback"},
 		{"GET", "/auth/:provider"},
 		{"GET", "/auth/logout/:provider"},
+		{"GET", "/api/v1/users/me"},
 	}
 	for _, route := range r.Routes() {
 		found := false

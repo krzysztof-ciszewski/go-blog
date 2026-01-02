@@ -4,6 +4,7 @@ import (
 	dependency_injection "main/internal/Infrastructure/DependencyInjection"
 	auth "main/internal/UserInterface/Api/Handler/Auth"
 	post "main/internal/UserInterface/Api/Handler/Post"
+	user "main/internal/UserInterface/Api/Handler/User"
 	middleware "main/internal/UserInterface/Api/Middleware"
 	"os"
 
@@ -57,6 +58,9 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 		})
 		apiGroup.DELETE("/posts/:id", func(ctx *gin.Context) {
 			post.DeletePost(ctx, container.CommandBus)
+		})
+		apiGroup.GET("/users/me", func(ctx *gin.Context) {
+			user.GetMe(ctx, container.QueryBus)
 		})
 	}
 
