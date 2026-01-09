@@ -7,7 +7,9 @@ import (
 	user "main/internal/UserInterface/Api/Handler/User"
 	middleware "main/internal/UserInterface/Api/Middleware"
 	"os"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
@@ -21,6 +23,14 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 	r.Use(container.Telemetry.LogRequest())
 	r.Use(container.Telemetry.MeterRequestDuration())
 	r.Use(container.Telemetry.MeterRequestsInFlught())
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{os.Getenv("CLIENT_URL")},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge: 12 * time.Hour,
+	}))
 	authGroup := r.Group("/auth")
 	apiGroup := r.Group("/api/v1", middleware.RequireAuth())
 
@@ -40,7 +50,7 @@ func BootstrapGin(container dependency_injection.Container) *gin.Engine {
 		authGroup.GET("/:provider", func(ctx *gin.Context) {
 			auth.OauthInitial(ctx, container.QueryBus, container.Telemetry)
 		})
-		authGroup.GET("/logout/:provider", auth.OauthLogout)
+		authGroup.GET("/logout", auth.OauthLogout)
 	}
 
 	{

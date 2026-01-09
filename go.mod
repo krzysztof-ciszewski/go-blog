@@ -8,6 +8,7 @@ require (
 	github.com/ThreeDotsLabs/watermill-sqlite/wmsqlitemodernc v0.1.2
 	github.com/boj/redistore v1.4.1
 	github.com/dentech-floss/watermill-opentelemetry-go-extra v0.1.1
+	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
